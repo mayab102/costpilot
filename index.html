@@ -3592,15 +3592,15 @@ function AppInner({ currentUser }) {
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupText, setBackupText] = useState("");
 
+  // Auto-save to Firestore — must be before any early return
+  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
+  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "allData", allData); }, [allData, dataLoaded]);
+
   if (!dataLoaded) return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Heebo',sans-serif", color:"#94a3b8", fontSize:16 }}>
       ⏳ טוען נתונים...
     </div>
   );
-
-  // Auto-save to Firestore whenever data changes
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "allData", allData); }, [allData, dataLoaded]);
 
   // ── project CRUD ─────────────────────────────────────────────────────────
   const addProject = () => {
