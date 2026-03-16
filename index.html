@@ -42,21 +42,43 @@
     // ── Firebase helpers ─────────────────────────────────────────────────────
     const getFirebase = () => window._firebase;
 
-    const saveToFirestore = async (uid, key, data) => {
+    // נתונים משותפים — נשמרים ב-shared/appdata
+    const saveShared = async (key, data) => {
       try {
         const { db, doc, setDoc } = getFirebase();
-        await setDoc(doc(db, "users", uid, "data", key), { value: JSON.stringify(data) });
+        await setDoc(doc(db, "shared", key), { value: JSON.stringify(data) }, { merge: false });
       } catch(e) { console.error("save error", e); }
     };
 
-    const loadFromFirestore = async (uid, key) => {
+    const loadShared = async (key) => {
       try {
         const { db, doc, getDoc } = getFirebase();
-        const snap = await getDoc(doc(db, "users", uid, "data", key));
+        const snap = await getDoc(doc(db, "shared", key));
         if (snap.exists()) return JSON.parse(snap.data().value);
       } catch(e) { console.error("load error", e); }
       return null;
     };
+
+    // הרשאות משתמש
+    const loadUserRole = async (uid) => {
+      try {
+        const { db, doc, getDoc } = getFirebase();
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) return snap.data();
+      } catch(e) { console.error("role error", e); }
+      return null;
+    };
+
+    const saveUserRole = async (uid, data) => {
+      try {
+        const { db, doc, setDoc } = getFirebase();
+        await setDoc(doc(db, "users", uid), data);
+      } catch(e) { console.error("save role error", e); }
+    };
+
+    // backward compat — ישן
+    const saveToFirestore = saveShared;
+    const loadFromFirestore = async (uid, key) => loadShared(key);
 
     // ── Login Screen ─────────────────────────────────────────────────────────
     function LoginScreen({ onLogin }) {
@@ -169,8 +191,109 @@
     }
 
     // ── App Wrapper ───────────────────────────────────────────────────────────
-    function App() {
-      const [user, setUser]       = useState(undefined); // undefined = טרם נבדק
+    
+    // ── User Management Page (admin only) ───────────────────────────────────
+    function UserManagementPage({ currentUser, projects }) {
+      const [users, setUsers]   = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving]   = useState(null);
+
+      // Load all users from Firestore
+      useEffect(() => {
+        const loadUsers = async () => {
+          try {
+            const { db } = getFirebase();
+            const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+            const snap = await getDocs(collection(db, "users"));
+            const list = [];
+            snap.forEach(d => list.push({ uid: d.id, ...d.data() }));
+            setUsers(list);
+          } catch(e) { console.error(e); }
+          setLoading(false);
+        };
+        loadUsers();
+      }, []);
+
+      const updateUser = async (uid, patch) => {
+        setSaving(uid);
+        const updated = users.map(u => u.uid === uid ? { ...u, ...patch } : u);
+        setUsers(updated);
+        const u = updated.find(x => x.uid === uid);
+        await saveUserRole(uid, { role: u.role || "user", projects: u.projects || [], email: u.email || "" });
+        setSaving(null);
+      };
+
+      const toggleProject = (uid, projId) => {
+        const u = users.find(x => x.uid === uid);
+        if (!u) return;
+        const pid = String(projId);
+        const current = u.projects || [];
+        const updated = current.includes(pid) ? current.filter(p => p !== pid) : [...current, pid];
+        updateUser(uid, { projects: updated });
+      };
+
+      if (loading) return <div style={{ padding:40, textAlign:"right", fontFamily:"'Heebo',sans-serif" }}>טוען משתמשים...</div>;
+
+      return (
+        <div style={{ padding:"30px 36px", fontFamily:"'Heebo',sans-serif", direction:"rtl" }}>
+          <div style={{ fontSize:24, fontWeight:900, color:"#1e293b", marginBottom:6 }}>👥 ניהול משתמשים</div>
+          <div style={{ fontSize:13, color:"#64748b", marginBottom:24 }}>הגדר הרשאות לכל משתמש</div>
+
+          {users.length === 0 && (
+            <div style={{ color:"#94a3b8", fontSize:14 }}>
+              אין משתמשים רשומים עדיין. משתמשים יופיעו כאן לאחר הכניסה הראשונה שלהם.
+            </div>
+          )}
+
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {users.map(u => (
+              <div key={u.uid} style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, padding:"18px 20px" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontWeight:700, color:"#1e293b", fontSize:15 }}>{u.email || u.uid}</div>
+                    {u.uid === currentUser.uid && <span style={{ fontSize:11, color:"#3b82f6", fontWeight:600 }}>את/ה</span>}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:12, color:"#64748b" }}>תפקיד:</span>
+                    <select value={u.role || "user"} onChange={e => updateUser(u.uid, { role: e.target.value })}
+                      disabled={u.uid === currentUser.uid}
+                      style={{ padding:"5px 10px", border:"1.5px solid #e2e8f0", borderRadius:7, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#f8fafc", outline:"none", cursor:"pointer" }}>
+                      <option value="admin">מנהל</option>
+                      <option value="user">משתמש</option>
+                    </select>
+                    {saving === u.uid && <span style={{ fontSize:11, color:"#3b82f6" }}>שומר...</span>}
+                  </div>
+                </div>
+
+                {(u.role || "user") === "user" && (
+                  <div>
+                    <div style={{ fontSize:12, color:"#64748b", fontWeight:600, marginBottom:8 }}>פרויקטים מורשים:</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                      {projects.length === 0 && <span style={{ fontSize:12, color:"#94a3b8" }}>אין פרויקטים עדיין</span>}
+                      {projects.map(p => {
+                        const active = (u.projects || []).includes(String(p.id));
+                        return (
+                          <button key={p.id} onClick={() => toggleProject(u.uid, p.id)}
+                            style={{ padding:"5px 12px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'Heebo',sans-serif", border:"none",
+                              background: active ? "#dbeafe" : "#f1f5f9",
+                              color: active ? "#2563eb" : "#64748b" }}>
+                            {active ? "✓ " : ""}{p.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+function App() {
+      const [user, setUser]         = useState(undefined);
+      const [userRole, setUserRole] = useState(null);  // { role: "admin"|"user", projects: [...] }
       const [checking, setChecking] = useState(true);
 
       useEffect(() => {
@@ -179,22 +302,33 @@
           if (window._firebase) {
             clearInterval(wait);
             const { auth, onAuthStateChanged } = window._firebase;
-            unsubscribe = onAuthStateChanged(auth, u => {
-              setUser(u || null);
+            unsubscribe = onAuthStateChanged(auth, async u => {
+              if (u) {
+                setUser(u);
+                // טעינת הרשאות
+                const roleData = await loadUserRole(u.uid);
+                if (roleData) {
+                  // עדכן מייל אם חסר
+                  if (!roleData.email && u.email) {
+                    await saveUserRole(u.uid, { ...roleData, email: u.email });
+                  }
+                  setUserRole(roleData);
+                } else {
+                  // משתמש חדש — שמור עם מייל
+                  const newRole = { role: "user", projects: [], email: u.email || "" };
+                  await saveUserRole(u.uid, newRole);
+                  setUserRole(newRole);
+                }
+              } else {
+                setUser(null);
+                setUserRole(null);
+              }
               setChecking(false);
             });
           }
         }, 100);
-        // timeout — אם Firebase לא נטען תוך 10 שניות, הצג כניסה
-        const timeout = setTimeout(() => {
-          clearInterval(wait);
-          setChecking(false);
-        }, 10000);
-        return () => {
-          clearInterval(wait);
-          clearTimeout(timeout);
-          if (unsubscribe) unsubscribe();
-        };
+        const timeout = setTimeout(() => { clearInterval(wait); setChecking(false); }, 10000);
+        return () => { clearInterval(wait); clearTimeout(timeout); if (unsubscribe) unsubscribe(); };
       }, []);
 
       if (checking) return (
@@ -204,8 +338,13 @@
         </div>
       );
 
-      if (!user) return <LoginScreen onLogin={setUser} />;
-      return <AppInner currentUser={user} />;
+      if (!user) return <LoginScreen onLogin={u => { setUser(u); }} />;
+      if (!userRole) return (
+        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Heebo',sans-serif", color:"#94a3b8" }}>
+          טוען הרשאות...
+        </div>
+      );
+      return <AppInner currentUser={user} userRole={userRole} setUserRole={setUserRole} />;
     }
 
 
@@ -3517,8 +3656,13 @@ function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows }) {
   );
 }
 
-function AppInner({ currentUser }) {
+function AppInner({ currentUser, userRole, setUserRole }) {
   const uid = currentUser.uid;
+  const isAdmin = userRole?.role === "admin";
+  // סינון פרויקטים לפי הרשאה
+  const visibleProjects = isAdmin
+    ? projects
+    : projects.filter(p => (userRole?.projects || []).includes(String(p.id)));
 
   const [projects, setProjects] = useState([]);
 
@@ -4007,17 +4151,32 @@ function AppInner({ currentUser }) {
 
         {/* User info + logout */}
         <div style={{ padding:"8px 12px", borderBottom:"1px solid #e2e8f0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:11, color:"#64748b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:140 }}>{currentUser.email}</span>
+          <div style={{ display:"flex", flexDirection:"column", gap:1, overflow:"hidden" }}>
+            <span style={{ fontSize:11, color:"#64748b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:130 }}>{currentUser.email}</span>
+            <span style={{ fontSize:10, color: isAdmin ? "#2563eb" : "#94a3b8", fontWeight:600 }}>{isAdmin ? "מנהל" : "משתמש"}</span>
+          </div>
           <button onClick={() => { const { auth, signOut } = window._firebase; signOut(auth); }}
             style={{ background:"none", border:"1px solid #e2e8f0", borderRadius:6, padding:"3px 8px", fontSize:11, color:"#94a3b8", cursor:"pointer", fontFamily:"'Heebo',sans-serif", whiteSpace:"nowrap" }}>
             יציאה
           </button>
         </div>
+        {/* ניהול משתמשים — מנהל בלבד */}
+        {isAdmin && (
+          <div onClick={() => { setGlobalPage("users"); setSelectedProj(null); }}
+            style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 11px", borderRadius:9, cursor:"pointer", fontSize:13,
+              fontWeight:globalPage==="users"?700:500,
+              color:globalPage==="users"?"#2563eb":"#64748b",
+              background:globalPage==="users"?"#eff6ff":"transparent",
+              border:globalPage==="users"?"1.5px solid #bfdbfe":"1.5px solid transparent",
+              margin:"4px 8px 0" }}>
+            <span style={{ fontSize:16 }}>👥</span> ניהול משתמשים
+          </div>
+        )}
 
         {/* Project list */}
         <div style={{ flex:1, overflowY:"auto", padding:"4px 10px 10px" }}>
           <div style={{ fontSize:10, color:"#94a3b8", fontWeight:700, letterSpacing:2, padding:"10px 3px 6px" }}>רשימת פרויקטים</div>
-          {projects.map(p => (
+          {visibleProjects.map(p => (
             <div key={p.id} className="hov-side"
               onClick={() => { setSelectedProj(p); setActiveTab("budget"); setGlobalPage(null); }}
               style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 11px", borderRadius:9, cursor:"pointer", marginBottom:2,
@@ -4058,6 +4217,9 @@ function AppInner({ currentUser }) {
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflowY:"auto" }}>
 
         {/* Global pages: dashboard / suppliers / companies / milestones */}
+        {!selectedProj && globalPage === "users" && isAdmin && (
+          <UserManagementPage currentUser={currentUser} projects={projects} />
+        )}
         {!selectedProj && globalPage === "dashboard" && (
           <DashboardPage
             allData={allData}
@@ -4162,6 +4324,11 @@ function AppInner({ currentUser }) {
         )}
 
         {/* Project detail */}
+        {selectedProj && !isAdmin && (
+          <div style={{ position:"fixed", top:0, left:0, right:0, background:"#fef3c7", borderBottom:"2px solid #fcd34d", padding:"8px 20px", textAlign:"center", fontSize:13, fontWeight:600, color:"#92400e", zIndex:500, fontFamily:"'Heebo',sans-serif" }}>
+            👁 מצב צפייה בלבד — אין הרשאת עריכה
+          </div>
+        )}
         {selectedProj && (
           <div className="fade" style={{ display:"flex", flexDirection:"column", flex:1 }}>
             {/* Header bar */}
