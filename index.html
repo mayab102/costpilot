@@ -63,7 +63,7 @@
     const loadUserRole = async (uid) => {
       try {
         const { db, doc, getDoc } = getFirebase();
-        const snap = await getDoc(doc(db, "users", uid));
+        const snap = await getDoc(doc(db, "userRoles", uid));
         if (snap.exists()) return snap.data();
       } catch(e) { console.error("role error", e); }
       return null;
@@ -72,7 +72,7 @@
     const saveUserRole = async (uid, data) => {
       try {
         const { db, doc, setDoc } = getFirebase();
-        await setDoc(doc(db, "users", uid), data);
+        await setDoc(doc(db, "userRoles", uid), data);
       } catch(e) { console.error("save role error", e); }
     };
 
@@ -204,7 +204,7 @@
           try {
             const { db } = getFirebase();
             const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-            const snap = await getDocs(collection(db, "users"));
+            const snap = await getDocs(collection(db, "userRoles"));
             const list = [];
             snap.forEach(d => list.push({ uid: d.id, ...d.data() }));
             setUsers(list);
@@ -308,13 +308,16 @@ function App() {
                 // טעינת הרשאות
                 const roleData = await loadUserRole(u.uid);
                 if (roleData) {
-                  // עדכן מייל אם חסר
+                  // קיים — אל תדרוס, רק עדכן מייל אם חסר
                   if (!roleData.email && u.email) {
-                    await saveUserRole(u.uid, { ...roleData, email: u.email });
+                    const updated = { ...roleData, email: u.email };
+                    await saveUserRole(u.uid, updated);
+                    setUserRole(updated);
+                  } else {
+                    setUserRole(roleData);
                   }
-                  setUserRole(roleData);
                 } else {
-                  // משתמש חדש — שמור עם מייל
+                  // משתמש חדש — ברירת מחדל user
                   const newRole = { role: "user", projects: [], email: u.email || "" };
                   await saveUserRole(u.uid, newRole);
                   setUserRole(newRole);
