@@ -64,6 +64,9 @@
       const [password, setPassword] = useState("");
       const [error, setError]       = useState("");
       const [loading, setLoading]   = useState(false);
+      const [resetSent, setResetSent] = useState(false);
+      const [showReset, setShowReset] = useState(false);
+      const [resetEmail, setResetEmail] = useState("");
 
       const handleLogin = async () => {
         if (!email || !password) { setError("יש למלא מייל וסיסמה"); return; }
@@ -78,6 +81,20 @@
         setLoading(false);
       };
 
+      const handleReset = async () => {
+        if (!resetEmail) { setError("יש להזין מייל"); return; }
+        setLoading(true); setError("");
+        try {
+          const { auth } = getFirebase();
+          const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+          await sendPasswordResetEmail(auth, resetEmail);
+          setResetSent(true);
+        } catch(e) {
+          setError("מייל לא נמצא במערכת");
+        }
+        setLoading(false);
+      };
+
       return (
         <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#f1f5f9", fontFamily:"'Heebo',sans-serif" }}>
           <style>{"@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap');"}</style>
@@ -86,29 +103,66 @@
               <div style={{ fontSize:32, fontWeight:900, color:"#2563eb", letterSpacing:-1 }}>CostPilot</div>
               <div style={{ fontSize:13, color:"#94a3b8", marginTop:4 }}>ניהול תקציב פרויקטים</div>
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              <div>
-                <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>כתובת מייל</label>
-                <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                  placeholder="name@company.com" dir="ltr"
-                  style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
-                  onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+
+            {!showReset ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>כתובת מייל</label>
+                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                    placeholder="name@company.com" dir="ltr"
+                    style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
+                    onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+                </div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>סיסמה</label>
+                  <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                    placeholder="••••••••" dir="ltr"
+                    style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
+                    onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+                </div>
+                {error && <div style={{ color:"#ef4444", fontSize:13, textAlign:"center" }}>{error}</div>}
+                <button onClick={handleLogin} disabled={loading}
+                  style={{ background:"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", border:"none", borderRadius:9, padding:"11px", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif", marginTop:4, opacity:loading?0.7:1 }}>
+                  {loading ? "מתחבר..." : "כניסה"}
+                </button>
+                <div style={{ textAlign:"center" }}>
+                  <button onClick={() => { setShowReset(true); setResetEmail(email); setError(""); }}
+                    style={{ background:"none", border:"none", color:"#3b82f6", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+                    שכחתי סיסמה
+                  </button>
+                </div>
               </div>
-              <div>
-                <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>סיסמה</label>
-                <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-                  placeholder="••••••••" dir="ltr"
-                  style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
-                  onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {resetSent ? (
+                  <div style={{ textAlign:"center", color:"#16a34a", fontSize:14, fontWeight:600 }}>
+                    ✅ נשלח מייל לאיפוס סיסמה!<br/>
+                    <span style={{ fontSize:12, color:"#64748b", fontWeight:400 }}>בדקי את תיבת המייל שלך</span>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize:14, color:"#374151", textAlign:"center" }}>הזיני את המייל שלך ונשלח לך קישור לאיפוס סיסמה</div>
+                    <input type="email" value={resetEmail} onChange={e=>setResetEmail(e.target.value)}
+                      placeholder="name@company.com" dir="ltr"
+                      style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
+                      onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+                    {error && <div style={{ color:"#ef4444", fontSize:13, textAlign:"center" }}>{error}</div>}
+                    <button onClick={handleReset} disabled={loading}
+                      style={{ background:"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", border:"none", borderRadius:9, padding:"11px", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif", opacity:loading?0.7:1 }}>
+                      {loading ? "שולח..." : "שלח קישור לאיפוס"}
+                    </button>
+                  </>
+                )}
+                <div style={{ textAlign:"center" }}>
+                  <button onClick={() => { setShowReset(false); setResetSent(false); setError(""); }}
+                    style={{ background:"none", border:"none", color:"#64748b", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+                    ← חזרה להתחברות
+                  </button>
+                </div>
               </div>
-              {error && <div style={{ color:"#ef4444", fontSize:13, textAlign:"center" }}>{error}</div>}
-              <button onClick={handleLogin} disabled={loading}
-                style={{ background:"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", border:"none", borderRadius:9, padding:"11px", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif", marginTop:4, opacity:loading?0.7:1 }}>
-                {loading ? "מתחבר..." : "כניסה"}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       );
@@ -3507,37 +3561,16 @@ function AppInner({ currentUser }) {
 
 
   // ── Suppliers (global) ──────────────────────────────────────────────────────
-  const [suppliers, setSuppliers] = useState(() => {
-    try {
-      const r = localStorage.getItem("proj_suppliers");
-      if (r) {
-        const data = JSON.parse(r);
-        return data.map(s => {
-          const name  = String(s.name||"").trim();
-          const field = String(s.field||"").trim();
-          // detect swapped: if name looks like a profession (no spaces, short) and field looks like a company
-          // simple heuristic: swap if field is longer than name (company names tend to be longer)
-          return { ...s, name, field };
-        });
-      }
-    } catch(e) {}
-    return [];
-  });
+  const [suppliers, setSuppliers] = useState([]);
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "suppliers", suppliers); }, [suppliers, dataLoaded]);
 
   // ── Municipal companies (global) ────────────────────────────────────────────
-  const [companies, setCompanies] = useState(() => {
-    try { const r = localStorage.getItem("proj_companies"); if(r) return JSON.parse(r); } catch(e) {}
-    return [];
-  });
+  const [companies, setCompanies] = useState([]);
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "companies", companies); }, [companies, dataLoaded]);
 
   // ── Milestones per company per profession (global) ──────────────────────────
   // structure: { [companyId]: { [profession]: [ {id,name,pct,planOnly} ] } }
-  const [milestones, setMilestones] = useState(() => {
-    try { const r = localStorage.getItem("proj_milestones"); if(r) return JSON.parse(r); } catch(e) {}
-    return {};
-  });
+  const [milestones, setMilestones] = useState({});
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "milestones", milestones); }, [milestones, dataLoaded]);
 
   // ── Statistics (global, persisted separately) ───────────────────────────
@@ -3551,21 +3584,19 @@ function AppInner({ currentUser }) {
     { id:7,  field:"אינסטלציה" },
     { id:8,  field:"פיתוח" },
   ];
-  const [statsRows, setStatsRows] = useState(() => {
-    try { const r = localStorage.getItem("proj_stats"); if(r) return JSON.parse(r); } catch(e) {}
-    return DEFAULT_STATS.map(s => ({ ...s, pct:"" }));
-  });
+  const [statsRows, setStatsRows] = useState(DEFAULT_STATS.map(s => ({ ...s, pct:"" })));
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "statsRows", statsRows); }, [statsRows, dataLoaded]);
 
   const notify = msg => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupText, setBackupText] = useState("");
 
   if (!dataLoaded) return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Heebo',sans-serif", color:"#94a3b8", fontSize:16 }}>
       ⏳ טוען נתונים...
     </div>
   );
-  const [showBackupModal, setShowBackupModal] = useState(false);
-  const [backupText, setBackupText] = useState("");
 
   // Auto-save to Firestore whenever data changes
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
