@@ -3328,7 +3328,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
   // Zone C: הוחזר ליועץ לתיקון
   // Zone 2: ממתין להעברה לחברה העירונית
   // Zone 3: ממתין לאישור החברה העירונית
-  const zoneA = [], zoneB = [], zoneC = [], zone2 = [], zone3 = [];
+  const zoneA = [], zoneB = [], zoneC = [], zoneUM = [], zone2 = [], zone3 = [];
 
   projects.forEach(proj => {
     // ── Consultant quotes ──
@@ -3413,9 +3413,9 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
       else if (!inv.pmApproved)
         zoneB.push({ ...base, key:`inv1-${proj.id}-${inv.id}` });
       else if (inv.pmApproved && !inv.unitManagerApproved)
-        zone2.push({ ...base, key:`inv2-${proj.id}-${inv.id}` });
+        zoneUM.push({ ...base, key:`inv2-${proj.id}-${inv.id}` });
       else if (inv.unitManagerApproved && !inv.toMunicipality)
-        zone3.push({ ...base, key:`inv3-${proj.id}-${inv.id}` });
+        zone2.push({ ...base, key:`inv3-${proj.id}-${inv.id}` });
     });
   });
 
@@ -3490,9 +3490,9 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
   const zones = [
     { title:"ממתין להמלצה על יועצים / אישור מנהל הגדלות", items:zoneA, color:"#374151", bg:"#fffbeb", border:"#fde68a", icon:"⏳", emptyText:"אין פריטים ממתינים" },
     { title:"ממתין לאישור מנהל פרויקט",                    items:zoneB, color:"#0891b2", bg:"#ecfeff", border:"#a5f3fc", icon:"👤", emptyText:"אין חשבונות הממתינים לאישור מנהל פרויקט" },
+    { title:"ממתין לאישור מנהל יחידה",                     items:zoneUM, color:"#7c3aed", bg:"#f5f3ff", border:"#c4b5fd", icon:"👔", emptyText:"אין חשבונות הממתינים לאישור מנהל יחידה" },
     { title:"הוחזר ליועץ לתיקון",                           items:zoneC, color:"#dc2626", bg:"#fef2f2", border:"#fecaca", icon:"↩️", emptyText:"אין חשבונות שהוחזרו ליועץ" },
-    { title:"ממתין להעברה לחברה העירונית",                  items:zone2, color:"#334155", bg:"#eff6ff", border:"#bfdbfe", icon:"📤", emptyText:"אין פריטים הממתינים להעברה" },
-    { title:"ממתינים לאישור החברה העירונית",                items:zone3, color:"#374151", bg:"#f5f3ff", border:"#ddd6fe", icon:"🏛️", emptyText:"אין פריטים הממתינים לאישור" },
+    { title:"ממתין לאישור מזמין",                           items:zone2, color:"#334155", bg:"#eff6ff", border:"#bfdbfe", icon:"📤", emptyText:"אין פריטים הממתינים לאישור מזמין" },
   ];
 
   return (
