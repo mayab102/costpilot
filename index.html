@@ -3343,7 +3343,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
         if (!anyRecommended && !alreadyApproved && namedConsultants.length > 0)
           zoneA.push({ projId: proj.id, projName: proj.name, fieldId: field.id, fieldName: field.fieldName,
             label: "—", value: null, type:"consultant", key: `z1-${proj.id}-${field.id}`, tab:"quotes",
-            createdAt: Math.min(...pending.map(c => c.createdAt || c.id)) });
+            createdAt: Math.min(...namedConsultants.map(c => c.createdAt || c.id)) });
       }
       field.consultants.filter(c => c.name?.trim() && c.recommended && !c.sentToMunicipality && !c.approved).forEach(c =>
         zone2.push({ projId: proj.id, projName: proj.name, fieldId: field.id, fieldName: field.fieldName,
