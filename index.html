@@ -3326,7 +3326,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     quotes.forEach(field => {
       if (field.readyToRecommend) {
         const alreadyApproved = field.consultants.some(c => c.name?.trim() && c.approved);
-        const pending = field.consultants.filter(c => c.name?.trim() && !c.approved);
+        const pending = field.consultants.filter(c => c.name?.trim() && !c.approved && !c.recommended);
         if (pending.length > 0 && !alreadyApproved)
           zoneA.push({ projId: proj.id, projName: proj.name, fieldId: field.id, fieldName: field.fieldName,
             label: "—", value: null, type:"consultant", key: `z1-${proj.id}-${field.id}`, tab:"quotes",
