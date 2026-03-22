@@ -3136,12 +3136,14 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
                   <tr key={p.id} style={{ borderBottom:"1px solid #f1f5f9", background:i%2===0?"#fff":"#fafbfd" }}>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"projectNumber",d.projectNumber)}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9", fontWeight:600 }}>
-                      <span onClick={() => onNavigate && onNavigate(p)}
-                        style={{ cursor:"pointer", color:"#2563eb", textDecoration:"none" }}
-                        onMouseOver={e=>e.target.style.textDecoration="underline"}
-                        onMouseOut={e=>e.target.style.textDecoration="none"}>
-                        {p.name}
-                      </span>
+                      <input value={p.name} onChange={e => {
+                        const newName = e.target.value;
+                        setProjects(prev => { const u = prev.map(x => x.id===p.id ? {...x, name:newName} : x); saveProjects(u); return u; });
+                      }}
+                        style={{ fontWeight:600, border:"none", background:"transparent", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", color:"#2563eb", width:"100%", cursor:"text", textAlign:"right" }}
+                        onFocus={e=>e.target.style.background="#eff6ff"}
+                        onBlur={e=>e.target.style.background="transparent"}
+                      />
                     </td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9", color:"#374151" }}>{company?.name||"—"}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"address",o.address)}</td>
