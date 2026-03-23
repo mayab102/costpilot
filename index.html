@@ -3398,8 +3398,8 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     accounts.forEach(inv => {
       // Skip if no meaningful amount (must be positive number)
       if (!inv.amount || Number(inv.amount) <= 0) return;
-      // Skip if no invoice number
-      if (!inv.invoiceNum) return;
+      // Skip if no invoice number (only for regular milestones, not increases)
+      if (!inv.invoiceNum && !inv.rowKey?.startsWith("i-")) return;
       // Off dashboard if approved by municipality or rejected
       if (inv.toMunicipality || inv.rejected) return;
       const base = { projId: proj.id, projName: proj.name,
