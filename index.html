@@ -3495,7 +3495,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     { title:"ממתין לאישור מנהל יחידה",                     items:zoneUM, color:"#7c3aed", bg:"#f5f3ff", border:"#c4b5fd", icon:"👔", emptyText:"אין חשבונות הממתינים לאישור מנהל יחידה" },
     { title:"הוחזר ליועץ לתיקון",                           items:zoneC, color:"#dc2626", bg:"#fef2f2", border:"#fecaca", icon:"↩️", emptyText:"אין חשבונות שהוחזרו ליועץ" },
     { title:"ממתין להעברה לחברה העירונית",                  items:zoneSend, color:"#0369a1", bg:"#f0f9ff", border:"#7dd3fc", icon:"📋", emptyText:"אין יועצים הממתינים להעברה" },
-    { title:"ממתין לאישור מזמין",                           items:zone2, color:"#334155", bg:"#eff6ff", border:"#bfdbfe", icon:"📤", emptyText:"אין פריטים הממתינים לאישור מזמין" },
+    { title:"ממתין לאישור מזמין",                           items:[...zone2, ...zone3], color:"#334155", bg:"#eff6ff", border:"#bfdbfe", icon:"📤", emptyText:"אין פריטים הממתינים לאישור מזמין" },
   ];
 
   return (
