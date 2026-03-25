@@ -247,7 +247,10 @@
       return (
         <div style={{ padding:"30px 36px", fontFamily:"'Heebo',sans-serif", direction:"rtl" }}>
           <div style={{ fontSize:24, fontWeight:900, color:"#1e293b", marginBottom:6 }}>👥 ניהול משתמשים</div>
-          <div style={{ fontSize:13, color:"#64748b", marginBottom:24 }}>הגדר הרשאות לכל משתמש</div>
+          <div style={{ fontSize:13, color:"#64748b", marginBottom:12 }}>הגדר הרשאות לכל משתמש</div>
+          <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:9, padding:"10px 16px", fontSize:13, color:"#92400e", marginBottom:20 }}>
+            ℹ️ להוספת משתמש חדש יש להירשם דרך <strong>Firebase Console</strong> — Authentication → Add user. לאחר הכניסה הראשונה המשתמש יופיע כאן לעריכת הרשאות.
+          </div>
 
           {users.length === 0 && (
             <div style={{ color:"#94a3b8", fontSize:14 }}>
