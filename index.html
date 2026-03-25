@@ -2331,6 +2331,187 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                   <td style={{ padding:"11px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(allRows.reduce((s,r)=>s+(r.planOnly||0),0))}</td>
                   <td colSpan={2} />
                 </tr>
+
+                {/* ── אגרות ── */}
+                {(() => {
+                  const FIXED_FEES = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
+                  const feeRows = bs.feeRows || FIXED_FEES.map(name => ({ id:name, name, contract:"", paid:"", planOnly:"", noClaims:false, notes:"" }));
+                  const extraFeeRows = bs.extraFeeRows || [];
+                  const allFeeRows = [...feeRows, ...extraFeeRows];
+                  const updFeeRow = (id, key, val, isExtra) => {
+                    if (isExtra) {
+                      upd("extraFeeRows", (bs.extraFeeRows||[]).map(r => r.id===id ? {...r,[key]:val} : r));
+                    } else {
+                      upd("feeRows", feeRows.map(r => r.id===id ? {...r,[key]:val} : r));
+                    }
+                  };
+                  const feeTotalContract = allFeeRows.reduce((s,r) => s+Number(r.contract||0),0);
+                  const feeTotalPaid = allFeeRows.reduce((s,r) => s+Number(r.paid||0),0);
+                  const feeTotalRemaining = allFeeRows.reduce((s,r) => r.noClaims ? s : s+Number(r.contract||0)-Number(r.paid||0),0);
+                  const feeTotalPlanOnly = allFeeRows.reduce((s,r) => s+Number(r.planOnly||0),0);
+                  const inputStyle = { width:"100%", fontSize:12, border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 7px", fontFamily:"'Heebo',sans-serif", background:"transparent", outline:"none", textAlign:"right" };
+                  return (<>
+                    <tr style={{ background:"#f0f9ff", borderTop:"2px solid #bfdbfe" }}>
+                      <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#1d4ed8", fontSize:13 }}>אגרות</td>
+                    </tr>
+                    {allFeeRows.map((r, i) => {
+                      const isExtra = i >= FIXED_FEES.length;
+                      const rem = r.noClaims ? 0 : Number(r.contract||0) - Number(r.paid||0);
+                      return (
+                        <tr key={r.id} style={{ borderBottom:"1px solid #f1f5f9", background:i%2===0?"#fff":"#fafbfd" }}>
+                          <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>אגרות</td>
+                          <td style={{ padding:"7px 10px" }}>
+                            {isExtra
+                              ? <input value={r.name} onChange={e=>updFeeRow(r.id,"name",e.target.value,true)} style={inputStyle} placeholder="שם האגרה..." />
+                              : <span style={{ fontSize:13, color:"#1e293b" }}>{r.name}</span>}
+                          </td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={r.contract||""} onChange={e=>updFeeRow(r.id,"contract",e.target.value,isExtra)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={r.paid||""} onChange={e=>updFeeRow(r.id,"paid",e.target.value,isExtra)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color: rem<0?"#dc2626":"#1e293b", textDecoration:r.noClaims?"line-through":"none" }}>{fmt(rem)}</td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={r.planOnly||""} onChange={e=>updFeeRow(r.id,"planOnly",e.target.value,isExtra)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px", textAlign:"center" }}>
+                            <input type="checkbox" checked={!!r.noClaims} onChange={e=>updFeeRow(r.id,"noClaims",e.target.checked,isExtra)} style={{ cursor:"pointer" }} />
+                          </td>
+                          <td style={{ padding:"7px 10px" }}>
+                            <input value={r.notes||""} onChange={e=>updFeeRow(r.id,"notes",e.target.value,isExtra)} style={inputStyle} placeholder="הערות..." />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ background:"#f1f5f9" }}>
+                      <td colSpan={2} style={{ padding:"7px 14px", textAlign:"right" }}>
+                        <button onClick={()=>upd("extraFeeRows",[...(bs.extraFeeRows||[]),{id:Date.now(),name:"",contract:"",paid:"",planOnly:"",noClaims:false,notes:""}])}
+                          style={{ background:"#dbeafe", color:"#1d4ed8", border:"none", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>+ הוסף אגרה</button>
+                      </td>
+                      <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(feeTotalContract)}</td>
+                      <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(feeTotalPaid)}</td>
+                      <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(feeTotalRemaining)}</td>
+                      <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(feeTotalPlanOnly)}</td>
+                      <td colSpan={2} style={{ padding:"7px 14px", fontWeight:800, color:"#1d4ed8", fontSize:12 }}>סה״כ אגרות</td>
+                    </tr>
+
+                    {/* ── קבלן ── */}
+                    {(() => {
+                      const contractorContract = Number(bs.contractorContract||0);
+                      const contractorPaid = Number(bs.contractorPaid||0);
+                      const contractorPlanOnly = Number(bs.contractorPlanOnly||0);
+                      const contractorNoClaims = !!bs.contractorNoClaims;
+                      const contractorRem = contractorNoClaims ? 0 : contractorContract - contractorPaid;
+                      return (<>
+                        <tr style={{ background:"#f0fdf4", borderTop:"2px solid #bbf7d0" }}>
+                          <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#15803d", fontSize:13 }}>קבלן</td>
+                        </tr>
+                        <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
+                          <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>קבלן</td>
+                          <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>קבלן ראשי</td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={bs.contractorContract||""} onChange={e=>upd("contractorContract",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={bs.contractorPaid||""} onChange={e=>upd("contractorPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:contractorRem<0?"#dc2626":"#1e293b", textDecoration:contractorNoClaims?"line-through":"none" }}>{fmt(contractorRem)}</td>
+                          <td style={{ padding:"7px 10px" }}><input type="number" value={bs.contractorPlanOnly||""} onChange={e=>upd("contractorPlanOnly",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px", textAlign:"center" }}><input type="checkbox" checked={contractorNoClaims} onChange={e=>upd("contractorNoClaims",e.target.checked)} style={{ cursor:"pointer" }} /></td>
+                          <td style={{ padding:"7px 10px" }}><input value={bs.contractorNotes||""} onChange={e=>upd("contractorNotes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
+                        </tr>
+                        <tr style={{ background:"#f1f5f9" }}>
+                          <td colSpan={2} style={{ padding:"7px 14px", fontWeight:800, color:"#15803d", fontSize:12 }}>סה״כ קבלן</td>
+                          <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(contractorContract)}</td>
+                          <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(contractorPaid)}</td>
+                          <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(contractorRem)}</td>
+                          <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(contractorPlanOnly)}</td>
+                          <td colSpan={2} />
+                        </tr>
+
+                        {/* ── תקורות ── */}
+                        {(() => {
+                          const baseForOverhead = consultantsTotal + feeTotalContract + contractorContract;
+                          const overheadPct = Number(bs.overheadPct||4);
+                          const overheadAmt = baseForOverhead * overheadPct / 100;
+                          const overheadPaid = Number(bs.overheadPaid||0);
+                          const overheadRem = overheadAmt - overheadPaid;
+                          const bcmBase = baseForOverhead + overheadAmt;
+                          const bcmPct = Number(bs.bcmPct||0);
+                          const bcmAmt = bcmBase * bcmPct / 100;
+                          const bcmPaid = Number(bs.bcmPaid||0);
+                          const bcmRem = bcmAmt - bcmPaid;
+                          const vatPct = Number(bs.vatPct||18);
+                          const vatBase = bcmBase + bcmAmt;
+                          const vatAmt = vatBase * vatPct / 100;
+                          const vatPaid = Number(bs.vatPaid||0);
+                          const vatRem = vatAmt - vatPaid;
+                          const overheadTotalAmt = overheadAmt + bcmAmt + vatAmt;
+                          const grandTotalContract = consultantsTotal + feeTotalContract + contractorContract + overheadTotalAmt;
+                          const grandTotalPaid = allRows.reduce((s,r)=>s+(r.paid||0),0) + feeTotalPaid + contractorPaid + overheadPaid + bcmPaid + vatPaid;
+                          const grandTotalRem = grandTotalContract - grandTotalPaid;
+                          return (<>
+                            <tr style={{ background:"#fdf4ff", borderTop:"2px solid #e9d5ff" }}>
+                              <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#7e22ce", fontSize:13 }}>תקורות</td>
+                            </tr>
+                            {/* תקורות חברה עירונית */}
+                            <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
+                              <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>תקורות</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
+                              <td style={{ padding:"7px 10px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                                  <input type="number" value={bs.overheadPct||4} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50}} />
+                                  <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.overheadPaid||""} onChange={e=>upd("overheadPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:overheadRem<0?"#dc2626":"#1e293b" }}>{fmt(overheadRem)}</td>
+                              <td colSpan={3} />
+                            </tr>
+                            {/* בצ"מ */}
+                            <tr style={{ borderBottom:"1px solid #f1f5f9", background:"#fafbfd" }}>
+                              <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>תקורות</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>בצ״מ</td>
+                              <td style={{ padding:"7px 10px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:50}} placeholder="%" />
+                                  <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(bcmAmt)}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.bcmPaid||""} onChange={e=>upd("bcmPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:bcmRem<0?"#dc2626":"#1e293b" }}>{fmt(bcmRem)}</td>
+                              <td colSpan={3} />
+                            </tr>
+                            {/* מע"מ */}
+                            <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
+                              <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>תקורות</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>מע״מ</td>
+                              <td style={{ padding:"7px 10px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:50}} />
+                                  <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(vatAmt)}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.vatPaid||""} onChange={e=>upd("vatPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:vatRem<0?"#dc2626":"#1e293b" }}>{fmt(vatRem)}</td>
+                              <td colSpan={3} />
+                            </tr>
+                            {/* סה"כ תקורות */}
+                            <tr style={{ background:"#f1f5f9", borderTop:"1px solid #e9d5ff" }}>
+                              <td colSpan={2} style={{ padding:"7px 14px", fontWeight:800, color:"#7e22ce", fontSize:12 }}>סה״כ תקורות</td>
+                              <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(overheadTotalAmt)}</td>
+                              <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(overheadPaid+bcmPaid+vatPaid)}</td>
+                              <td style={{ padding:"7px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(overheadRem+bcmRem+vatRem)}</td>
+                              <td colSpan={3} />
+                            </tr>
+                            {/* סה"כ כללי */}
+                            <tr style={{ background:"#fefce8", borderTop:"3px solid #fbbf24" }}>
+                              <td colSpan={2} style={{ padding:"11px 14px", fontWeight:900, color:"#92400e", fontSize:14 }}>סה״כ כללי</td>
+                              <td style={{ padding:"11px 14px", fontWeight:900, color:"#92400e", fontSize:14, textAlign:"right" }}>{fmt(grandTotalContract)}</td>
+                              <td style={{ padding:"11px 14px", fontWeight:900, color:"#92400e", fontSize:14, textAlign:"right" }}>{fmt(grandTotalPaid)}</td>
+                              <td style={{ padding:"11px 14px", fontWeight:900, color:"#92400e", fontSize:14, textAlign:"right" }}>{fmt(grandTotalRem)}</td>
+                              <td colSpan={3} />
+                            </tr>
+                          </>);
+                        })()}
+                      </>);
+                    })()}
+                  </>);
+                })()}
               </tfoot>
             )}
           </table>
