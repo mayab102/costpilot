@@ -2365,21 +2365,9 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                   const feeTotalRemaining = allFeeRows.reduce((s,r) => r.noClaims ? s : s+Number(r.contract||0)-Number(r.paid||0),0);
                   const feeTotalPlanOnly = allFeeRows.reduce((s,r) => s+Number(r.planOnly||0),0);
                   const inputStyle = { width:"100%", fontSize:12, border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 7px", fontFamily:"'Heebo',sans-serif", background:"transparent", outline:"none", textAlign:"right" };
-                  const NumInput = ({ value, onChange, placeholder="0", style={} }) => {
-                    const [focused, setFocused] = React.useState(false);
-                    const [raw, setRaw] = React.useState(value||"");
-                    React.useEffect(() => { if (!focused) setRaw(value||""); }, [value, focused]);
-                    const display = focused ? raw : (Number(raw||0) ? Number(raw).toLocaleString("he-IL") : (raw||""));
-                    return <input value={display}
-                      onFocus={() => { setFocused(true); setRaw(value||""); }}
-                      onBlur={e => { setFocused(false); onChange(raw); }}
-                      onChange={e => { setRaw(e.target.value.replace(/[^\d.]/g,"")); }}
-                      placeholder={placeholder}
-                      style={{...inputStyle, ...style}} />;
-                  };
                   const fmtInput = (val) => val ? Number(String(val).replace(/,/g,"")).toLocaleString("he-IL") : "";
                   const parseInput = (val) => String(val).replace(/,/g,"");
-                  const NumInput = ({value, onChange, style}) => {
+                  const NumInput = ({value, onChange, placeholder="0", style={}}) => {
                     const [focused, setFocused] = React.useState(false);
                     const [raw, setRaw] = React.useState(value||"");
                     React.useEffect(() => { if (!focused) setRaw(value||""); }, [value, focused]);
@@ -2389,6 +2377,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                       onFocus={() => { setFocused(true); setRaw(value||""); }}
                       onChange={e => { setRaw(e.target.value); onChange(parseInput(e.target.value)); }}
                       onBlur={() => { setFocused(false); onChange(parseInput(raw)); }}
+                      placeholder={placeholder}
                       style={{...inputStyle, ...style}}
                     />;
                   };
