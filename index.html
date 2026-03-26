@@ -2057,10 +2057,15 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
 // ── Tab: תקציב הפרויקט ────────────────────────────────────────────────────────
 function NumInput({ value, onChange }) {
   const [focus, setFocus] = useState(false);
+  const [raw, setRaw] = useState(String(value||""));
+  React.useEffect(() => { if (!focus) setRaw(String(value||"")); }, [value, focus]);
+  const display = focus ? raw : (Number(raw) ? Number(raw).toLocaleString("he-IL") : raw);
   return (
     <input
-      type="number" value={value} onChange={onChange}
-      onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+      type="text" value={display}
+      onChange={e => { const v = e.target.value.replace(/,/g,""); setRaw(v); onChange(v); }}
+      onFocus={() => { setFocus(true); setRaw(String(value||"")); }}
+      onBlur={() => setFocus(false)}
       style={{ width:160, textAlign:"right", background: focus?"#fff":"#f8fafc", border:`1.5px solid ${focus?"#3b82f6":"#e2e8f0"}`, borderRadius:8, padding:"6px 10px", fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", color:"#1e293b" }}
     />
   );
@@ -2360,6 +2365,33 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                   const feeTotalRemaining = allFeeRows.reduce((s,r) => r.noClaims ? s : s+Number(r.contract||0)-Number(r.paid||0),0);
                   const feeTotalPlanOnly = allFeeRows.reduce((s,r) => s+Number(r.planOnly||0),0);
                   const inputStyle = { width:"100%", fontSize:12, border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 7px", fontFamily:"'Heebo',sans-serif", background:"transparent", outline:"none", textAlign:"right" };
+                  const NumInput = ({ value, onChange, placeholder="0", style={} }) => {
+                    const [focused, setFocused] = React.useState(false);
+                    const [raw, setRaw] = React.useState(value||"");
+                    React.useEffect(() => { if (!focused) setRaw(value||""); }, [value, focused]);
+                    const display = focused ? raw : (Number(raw||0) ? Number(raw).toLocaleString("he-IL") : (raw||""));
+                    return <input value={display}
+                      onFocus={() => { setFocused(true); setRaw(value||""); }}
+                      onBlur={e => { setFocused(false); onChange(raw); }}
+                      onChange={e => { setRaw(e.target.value.replace(/[^\d.]/g,"")); }}
+                      placeholder={placeholder}
+                      style={{...inputStyle, ...style}} />;
+                  };
+                  const fmtInput = (val) => val ? Number(String(val).replace(/,/g,"")).toLocaleString("he-IL") : "";
+                  const parseInput = (val) => String(val).replace(/,/g,"");
+                  const NumInput = ({value, onChange, style}) => {
+                    const [focused, setFocused] = React.useState(false);
+                    const [raw, setRaw] = React.useState(value||"");
+                    React.useEffect(() => { if (!focused) setRaw(value||""); }, [value, focused]);
+                    return <input
+                      type="text"
+                      value={focused ? raw : fmtInput(value)}
+                      onFocus={() => { setFocused(true); setRaw(value||""); }}
+                      onChange={e => { setRaw(e.target.value); onChange(parseInput(e.target.value)); }}
+                      onBlur={() => { setFocused(false); onChange(parseInput(raw)); }}
+                      style={{...inputStyle, ...style}}
+                    />;
+                  };
                   return (<>
                     <tr style={{ background:"#f0f9ff", borderTop:"2px solid #bfdbfe" }}>
                       <td colSpan={9} style={{ padding:"8px 14px", fontWeight:800, color:"#1d4ed8", fontSize:13 }}>אגרות</td>
@@ -2375,8 +2407,8 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                               ? <input value={r.name} onChange={e=>updFeeRow(r.id,"name",e.target.value,true)} style={inputStyle} placeholder="שם האגרה..." />
                               : <span style={{ fontSize:13, color:"#1e293b" }}>{r.name}</span>}
                           </td>
-                          <td style={{ padding:"7px 10px" }}><input type="number" value={r.contract||""} onChange={e=>updFeeRow(r.id,"contract",e.target.value,isExtra)} style={inputStyle} placeholder="0" /></td>
-                          <td style={{ padding:"7px 10px" }}><input type="number" value={r.paid||""} onChange={e=>updFeeRow(r.id,"paid",e.target.value,isExtra)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px" }}><NumInput value={r.contract||""} onChange={v=>updFeeRow(r.id,"contract",v,isExtra)} /></td>
+                          <td style={{ padding:"7px 10px" }}><NumInput value={r.paid||""} onChange={v=>updFeeRow(r.id,"paid",v,isExtra)} /></td>
                           <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color: rem<0?"#dc2626":"#1e293b", textDecoration:r.noClaims?"line-through":"none" }}>{fmt(rem)}</td>
                           <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>{fmt(Number(r.contract||0))}</td>
                           <td />
@@ -2413,8 +2445,8 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                         <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                           <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>קבלן</td>
                           <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>קבלן ראשי</td>
-                          <td style={{ padding:"7px 10px" }}><input type="number" value={bs.contractorContract||""} onChange={e=>upd("contractorContract",e.target.value)} style={inputStyle} placeholder="0" /></td>
-                          <td style={{ padding:"7px 10px" }}><input type="number" value={bs.contractorPaid||""} onChange={e=>upd("contractorPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                          <td style={{ padding:"7px 10px" }}><NumInput value={bs.contractorContract||""} onChange={v=>upd("contractorContract",v)} /></td>
+                          <td style={{ padding:"7px 10px" }}><NumInput value={bs.contractorPaid||""} onChange={v=>upd("contractorPaid",v)} /></td>
                           <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:contractorRem<0?"#dc2626":"#1e293b", textDecoration:contractorNoClaims?"line-through":"none" }}>{fmt(contractorRem)}</td>
                           <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>{fmt(contractorContract)}</td>
                           <td />
@@ -2458,15 +2490,15 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, direction:"ltr" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
+                                  <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:55, textAlign:"right"}} />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.overheadPaid||""} onChange={e=>upd("overheadPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.overheadPaid||""} onChange={v=>upd("overheadPaid",v)} /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:overheadRem<0?"#dc2626":"#1e293b" }}>{fmt(overheadRem)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.overheadPlanOnly||""} onChange={e=>upd("overheadPlanOnly",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.overheadPlanOnly||""} onChange={v=>upd("overheadPlanOnly",v)} /></td>
                               <td />
                               <td style={{ padding:"7px 10px" }}><input value={bs.overheadNotes||""} onChange={e=>upd("overheadNotes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
                             </tr>
@@ -2474,15 +2506,15 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9", background:"#fafbfd" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>בצ״מ</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, direction:"ltr" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
+                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} placeholder="" />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:55, textAlign:"right"}} placeholder="" />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(bcmAmt)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.bcmPaid||""} onChange={e=>upd("bcmPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.bcmPaid||""} onChange={v=>upd("bcmPaid",v)} /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:bcmRem<0?"#dc2626":"#1e293b" }}>{fmt(bcmRem)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.bcmPlanOnly||""} onChange={e=>upd("bcmPlanOnly",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.bcmPlanOnly||""} onChange={v=>upd("bcmPlanOnly",v)} /></td>
                               <td />
                               <td style={{ padding:"7px 10px" }}><input value={bs.bcmNotes||""} onChange={e=>upd("bcmNotes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
                             </tr>
@@ -2490,15 +2522,15 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>מע״מ</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, direction:"ltr" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
+                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:55, textAlign:"right"}} />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(vatAmt)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.vatPaid||""} onChange={e=>upd("vatPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.vatPaid||""} onChange={v=>upd("vatPaid",v)} /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:vatRem<0?"#dc2626":"#1e293b" }}>{fmt(vatRem)}</td>
-                              <td style={{ padding:"7px 10px" }}><input type="number" value={bs.vatPlanOnly||""} onChange={e=>upd("vatPlanOnly",e.target.value)} style={inputStyle} placeholder="0" /></td>
+                              <td style={{ padding:"7px 10px" }}><NumInput value={bs.vatPlanOnly||""} onChange={v=>upd("vatPlanOnly",v)} /></td>
                               <td />
                               <td style={{ padding:"7px 10px" }}><input value={bs.vatNotes||""} onChange={e=>upd("vatNotes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
                             </tr>
