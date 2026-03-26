@@ -2256,6 +2256,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                 {[
                   { h:"שם המקצוע",        w:120 },
                   { h:"שם היועץ",          w:140 },
+                  { h:"אחוז",              w:60  },
                   { h:"סכום\nהתקשרות",     w:100 },
                   { h:"סכום\nמצטבר",       w:90 },
                   { h:"יתרה\nלתשלום",      w:90 },
@@ -2269,7 +2270,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
             </thead>
             <tbody>
               {allRows.length === 0 ? (
-                <tr><td colSpan={8} style={{ padding:32, textAlign:"right", color:"#94a3b8" }}>אשר יועצים בלשונית "הצעות מחיר יועצים" כדי לראות את תקציב הפרויקט</td></tr>
+                <tr><td colSpan={9} style={{ padding:32, textAlign:"right", color:"#94a3b8" }}>אשר יועצים בלשונית "הצעות מחיר יועצים" כדי לראות את תקציב הפרויקט</td></tr>
               ) : allRows.map((r,i) => {
                 const isPct      = r.payType === "אחוזים";
                 const isArch     = isPct && (r.field||"").includes("אדריכל");
@@ -2291,6 +2292,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                     <td style={{ padding:"10px 10px", fontWeight:700, color:"#334155", whiteSpace:"nowrap", maxWidth:120, overflow:"hidden", textOverflow:"ellipsis", cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted" }}
                       onClick={() => onNavigate && onNavigate("consultants", r._consultantRowId)}>{r.field}</td>
                     <td style={{ padding:"10px 10px", color:"#1e293b", fontWeight:400, whiteSpace:"nowrap", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", textAlign:"right" }}>{r.name}</td>
+                    <td style={{ padding:"10px 10px", color:"#94a3b8", fontSize:12, textAlign:"right" }}>{r.payType==="אחוזים" ? r.value+"%" : "—"}</td>
                     <td style={{ padding:"10px 10px", fontWeight:400, color:"#1e293b", textAlign:"right" }}>{feeLabel}</td>
                     <td style={{ padding:"10px 10px", color:"#1e293b", fontWeight:400, textAlign:"right" }}>{fmt(r.paid||0)}</td>
                     <td style={{ padding:"10px 10px", color: noBase?"#94a3b8": r.noClaims ? "#94a3b8" : remaining2 < 0 ? "#dc2626" : "#1e293b", fontWeight:400,
@@ -2322,6 +2324,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                 <tr style={{ background:"#f8fafc", borderTop:"2px solid #e2e8f0" }}>
                   <td style={{ padding:"11px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>סה״כ יועצים</td>
                   <td style={{ padding:"11px 14px", color:"#94a3b8", fontSize:12, textAlign:"right" }}>{allRows.length} יועצים</td>
+                  <td />
                   <td style={{ padding:"11px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(consultantsTotal)}</td>
                   <td style={{ padding:"11px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(allRows.reduce((s,r)=>s+(r.paid||0),0))}</td>
                   <td style={{ padding:"11px 14px", fontWeight:800, color:"#1e293b", textAlign:"right" }}>{fmt(allRows.reduce((s,r)=>{
@@ -2352,7 +2355,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                   const inputStyle = { width:"100%", fontSize:12, border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 7px", fontFamily:"'Heebo',sans-serif", background:"transparent", outline:"none", textAlign:"right" };
                   return (<>
                     <tr style={{ background:"#f0f9ff", borderTop:"2px solid #bfdbfe" }}>
-                      <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#1d4ed8", fontSize:13 }}>אגרות</td>
+                      <td colSpan={9} style={{ padding:"8px 14px", fontWeight:800, color:"#1d4ed8", fontSize:13 }}>אגרות</td>
                     </tr>
                     {allFeeRows.map((r, i) => {
                       const isExtra = i >= FIXED_FEES.length;
@@ -2398,7 +2401,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                       const contractorRem = contractorNoClaims ? 0 : contractorContract - contractorPaid;
                       return (<>
                         <tr style={{ background:"#f0fdf4", borderTop:"2px solid #bbf7d0" }}>
-                          <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#15803d", fontSize:13 }}>קבלן</td>
+                          <td colSpan={9} style={{ padding:"8px 14px", fontWeight:800, color:"#15803d", fontSize:13 }}>קבלן</td>
                         </tr>
                         <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                                                     <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>קבלן ראשי</td>
@@ -2441,46 +2444,46 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                           const grandTotalRem = grandTotalContract - grandTotalPaid;
                           return (<>
                             <tr style={{ background:"#fdf4ff", borderTop:"2px solid #e9d5ff" }}>
-                              <td colSpan={8} style={{ padding:"8px 14px", fontWeight:800, color:"#7e22ce", fontSize:13 }}>תקורות</td>
+                              <td colSpan={9} style={{ padding:"8px 14px", fontWeight:800, color:"#7e22ce", fontSize:13 }}>תקורות</td>
                             </tr>
                             {/* תקורות חברה עירונית */}
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
-                                                            <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
                               <td style={{ padding:"7px 10px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                                  <input type="number" value={bs.overheadPct||4} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50}} />
+                                  <input type="number" value={bs.overheadPct||4} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:55}} />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</span>
                                 </div>
                               </td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</td>
                               <td style={{ padding:"7px 10px" }}><input type="number" value={bs.overheadPaid||""} onChange={e=>upd("overheadPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:overheadRem<0?"#dc2626":"#1e293b" }}>{fmt(overheadRem)}</td>
                               <td colSpan={3} />
                             </tr>
                             {/* בצ"מ */}
                             <tr style={{ borderBottom:"1px solid #f1f5f9", background:"#fafbfd" }}>
-                                                            <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>בצ״מ</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>בצ״מ</td>
                               <td style={{ padding:"7px 10px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:50}} placeholder="%" />
+                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:55}} placeholder="%" />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(bcmAmt)}</span>
                                 </div>
                               </td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(bcmAmt)}</td>
                               <td style={{ padding:"7px 10px" }}><input type="number" value={bs.bcmPaid||""} onChange={e=>upd("bcmPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:bcmRem<0?"#dc2626":"#1e293b" }}>{fmt(bcmRem)}</td>
                               <td colSpan={3} />
                             </tr>
                             {/* מע"מ */}
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
-                                                            <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>מע״מ</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>מע״מ</td>
                               <td style={{ padding:"7px 10px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:50}} />
+                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:55}} />
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <span style={{ fontSize:12, color:"#1e293b", fontWeight:600 }}>{fmt(vatAmt)}</span>
                                 </div>
                               </td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(vatAmt)}</td>
                               <td style={{ padding:"7px 10px" }}><input type="number" value={bs.vatPaid||""} onChange={e=>upd("vatPaid",e.target.value)} style={inputStyle} placeholder="0" /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:vatRem<0?"#dc2626":"#1e293b" }}>{fmt(vatRem)}</td>
                               <td colSpan={3} />
