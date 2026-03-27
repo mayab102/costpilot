@@ -4067,7 +4067,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
 
   // ── Export project to Excel ──────────────────────────────────────────────
   const exportProjectToExcel = (proj) => {
-    try {
     const XLSX = window.XLSX;
     if (!XLSX) { alert("ספריית Excel לא נטענה, נסה שוב"); return; }
     const d = allData[proj.id] || {};
@@ -4293,7 +4292,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    } catch(err) { alert("שגיאה בייצוא: " + err.message); console.error(err); }
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
