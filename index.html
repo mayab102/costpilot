@@ -4067,6 +4067,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
 
   // ── Export project to Excel ──────────────────────────────────────────────
   const exportProjectToExcel = (proj) => {
+    try {
     const XLSX = window.XLSX;
     if (!XLSX) { alert("ספריית Excel לא נטענה, נסה שוב"); return; }
     const d = allData[proj.id] || {};
@@ -4192,7 +4193,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     const budgetRows = [COL];
 
     // ── אומדנים ──
-    budgetRows.push(["── אומדנים ──","","","","","","",""]);
+    budgetRows.push(["אומדנים","","","","","","",""]);
     budgetRows.push(["אומדן עירוני",      toNum(o.municipalEst  || bs.municipalEst),"","","","","",""]);
     budgetRows.push(["אומדן קבלני",       toNum(o.contractorEst || bs.contractorEst),"","","","","",""]);
     budgetRows.push(["כתב כמויות / מכרז", toNum(bs.tenderDocs),"","","","","",""]);
@@ -4201,8 +4202,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     budgetRows.push(["קיזוז דמי הקמה",   toNum(bs.setupOffset),"","","","","",""]);
     (bs.extraItems||[]).forEach(x => budgetRows.push([x.desc||"תקציב שהתקבל", toNum(x.amount),"","","","","",""]));
 
-    // ── יועצים ──
-    budgetRows.push(["── יועצים ──","","","","","","",""]);
+    // פירוט יועצים
+    budgetRows.push(["יועצים","","","","","","",""]);
     exportAllRows.forEach(r => {
       const baseFee  = r.payType === "אחוזים" ? r.computedFee : r.value;
       const totalFee = baseFee + r.increases;
@@ -4225,7 +4226,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     const FIXED_FEES_EXPORT = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\u05D9","בזק","הוט","רשות העתיקות","תיק מידע"];
     const feeRowsArr = bs.feeRows || FIXED_FEES_EXPORT.map(name => ({ id:name, name, contract:"", paid:"", noClaims:false, notes:"" }));
     const allFeeRowsExport = [...feeRowsArr, ...(bs.extraFeeRows||[])];
-    budgetRows.push(["── אגרות ──","","","","","","",""]);
+    budgetRows.push(["אגרות","","","","","","",""]);
     let feeTotalContractExport = 0, feeTotalPaidExport = 0;
     allFeeRowsExport.forEach(r => {
       const contract = Number(r.contract||0);
@@ -4239,7 +4240,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     // ── קבלן ──
     const contractorContract = Number(bs.contractorContract||0);
     const contractorPaid     = Number(bs.contractorPaid||0);
-    budgetRows.push(["── קבלן ──","","","","","","",""]);
+    budgetRows.push(["קבלן","","","","","","",""]);
     budgetRows.push(["קבלן","קבלן ראשי", contractorContract||"", contractorPaid||"", contractorContract-contractorPaid, contractorContract||"","", bs.contractorNotes||""]);
     budgetRows.push(["סה״כ קבלן","", contractorContract, contractorPaid, contractorContract-contractorPaid,"","",""]);
 
@@ -4256,7 +4257,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     const vatAmt           = (bcmBase + bcmAmt) * vatPct / 100;
     const vatPaid          = Number(bs.vatPaid||0);
     const overheadTotalAmt = overheadAmt + bcmAmt + vatAmt;
-    budgetRows.push(["── תקורות ──","","","","","","",""]);
+    budgetRows.push(["תקורות","","","","","","",""]);
     budgetRows.push(["תקורות","תקורות חברה עירונית ("+overheadPct+"%)", overheadAmt, overheadPaid, overheadAmt-overheadPaid,"","", bs.overheadNotes||""]);
     budgetRows.push(["תקורות","בצ״מ ("+bcmPct+"%)", bcmAmt, bcmPaid, bcmAmt-bcmPaid,"","", bs.bcmNotes||""]);
     budgetRows.push(["תקורות","מע״מ ("+vatPct+"%)", vatAmt, vatPaid, vatAmt-vatPaid,"","", bs.vatNotes||""]);
@@ -4292,6 +4293,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    } catch(err) { alert("שגיאה בייצוא: " + err.message); console.error(err); }
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
