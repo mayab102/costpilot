@@ -4222,7 +4222,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     budgetRows.push(["סה״כ יועצים","", consultantsTotalExport, consultantsPaidExport, consultantsTotalExport - consultantsPaidExport,"","",""]);
 
     // ── אגרות ──
-    const FIXED_FEES_EXPORT = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
+    const FIXED_FEES_EXPORT = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\u05D9","בזק","הוט","רשות העתיקות","תיק מידע"];
     const feeRowsArr = bs.feeRows || FIXED_FEES_EXPORT.map(name => ({ id:name, name, contract:"", paid:"", noClaims:false, notes:"" }));
     const allFeeRowsExport = [...feeRowsArr, ...(bs.extraFeeRows||[])];
     budgetRows.push(["── אגרות ──","","","","","","",""]);
