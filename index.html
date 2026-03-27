@@ -2479,9 +2479,9 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
-                                  <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-start" }}>
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</td>
@@ -2495,9 +2495,9 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9", background:"#fafbfd" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>בצ״מ</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
-                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} placeholder="" />
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-start" }}>
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <input type="number" value={bs.bcmPct||""} onChange={e=>upd("bcmPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} placeholder="" />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(bcmAmt)}</td>
@@ -2511,9 +2511,9 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>מע״מ</td>
                               <td style={{ padding:"7px 10px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-end" }}>
-                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
+                                <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-start" }}>
                                   <span style={{ fontSize:11, color:"#64748b" }}>%</span>
+                                  <input type="number" value={bs.vatPct||18} onChange={e=>upd("vatPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(vatAmt)}</td>
@@ -4188,33 +4188,30 @@ function AppInner({ currentUser, userRole, setUserRole }) {
 
     const toNum = (v) => { const n = Number(String(v||"").replace(/,/g,"").replace(/[^\d.\-]/g,"")); return isNaN(n) ? "" : n; };
 
-    // ── טבלה אחת רציפה עם 8 עמודות קבועות ──
-    // עמודות: שם המקצוע | שם היועץ/תיאור | סכום התקשרות | סכום מצטבר ששולם | יתרה לתשלום | סכום לשלב התכנון | העדר תביעות | הערות
     const COL = ["שם המקצוע / סעיף","שם היועץ / תיאור","סכום התקשרות","סכום מצטבר ששולם","יתרה לתשלום","סכום לשלב התכנון","העדר תביעות","הערות"];
     const budgetRows = [COL];
 
     // ── אומדנים ──
     budgetRows.push(["── אומדנים ──","","","","","","",""]);
-    budgetRows.push(["אומדן עירוני",    toNum(o.municipalEst  || bs.municipalEst),"","","","","",""]);
-    budgetRows.push(["אומדן קבלני",     toNum(o.contractorEst || bs.contractorEst),"","","","","",""]);
+    budgetRows.push(["אומדן עירוני",      toNum(o.municipalEst  || bs.municipalEst),"","","","","",""]);
+    budgetRows.push(["אומדן קבלני",       toNum(o.contractorEst || bs.contractorEst),"","","","","",""]);
     budgetRows.push(["כתב כמויות / מכרז", toNum(bs.tenderDocs),"","","","","",""]);
-    budgetRows.push(["חשבון קבלן סופי", toNum(bs.finalAccount),"","","","","",""]);
-    budgetRows.push(["אישור בפועל",     toNum(bs.approvalActual),"","","","","",""]);
-    budgetRows.push(["קיזוז דמי הקמה", toNum(bs.setupOffset),"","","","","",""]);
+    budgetRows.push(["חשבון קבלן סופי",   toNum(bs.finalAccount),"","","","","",""]);
+    budgetRows.push(["אישור בפועל",       toNum(bs.approvalActual),"","","","","",""]);
+    budgetRows.push(["קיזוז דמי הקמה",   toNum(bs.setupOffset),"","","","","",""]);
     (bs.extraItems||[]).forEach(x => budgetRows.push([x.desc||"תקציב שהתקבל", toNum(x.amount),"","","","","",""]));
 
     // ── יועצים ──
     budgetRows.push(["── יועצים ──","","","","","","",""]);
     exportAllRows.forEach(r => {
-      const baseFee   = r.payType === "אחוזים" ? r.computedFee : r.value;
-      const totalFee  = baseFee + r.increases;
-      const remaining = totalFee - r.paid;
-      const hasBase   = !!Number(exportBState.contractorEst||0) || r.payType !== "אחוזים";
+      const baseFee  = r.payType === "אחוזים" ? r.computedFee : r.value;
+      const totalFee = baseFee + r.increases;
+      const hasBase  = !!Number(exportBState.contractorEst||0) || r.payType !== "אחוזים";
       budgetRows.push([
         r.field, r.name,
         !hasBase ? (r.value + "%") : totalFee,
         r.paid,
-        !hasBase ? "" : remaining,
+        !hasBase ? "" : totalFee - r.paid,
         r.planOnly > 0 ? r.planOnly : "",
         r.noClaims ? "כן" : "לא",
         r.notes||"",
@@ -4233,34 +4230,32 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     allFeeRowsExport.forEach(r => {
       const contract = Number(r.contract||0);
       const paid     = Number(r.paid||0);
-      const rem      = r.noClaims ? 0 : contract - paid;
       feeTotalContractExport += contract;
       feeTotalPaidExport     += paid;
-      budgetRows.push(["אגרות", r.name||"", contract||"", paid||"", rem||"", contract||"", r.noClaims?"כן":"לא", r.notes||""]);
+      budgetRows.push(["אגרות", r.name||"", contract||"", paid||"", r.noClaims?0:contract-paid, contract||"", r.noClaims?"כן":"לא", r.notes||""]);
     });
     budgetRows.push(["סה״כ אגרות","", feeTotalContractExport, feeTotalPaidExport, feeTotalContractExport - feeTotalPaidExport,"","",""]);
 
     // ── קבלן ──
     const contractorContract = Number(bs.contractorContract||0);
     const contractorPaid     = Number(bs.contractorPaid||0);
-    const contractorRem      = contractorContract - contractorPaid;
     budgetRows.push(["── קבלן ──","","","","","","",""]);
-    budgetRows.push(["קבלן","קבלן ראשי", contractorContract||"", contractorPaid||"", contractorRem||"", contractorContract||"","", bs.contractorNotes||""]);
-    budgetRows.push(["סה״כ קבלן","", contractorContract, contractorPaid, contractorRem,"","",""]);
+    budgetRows.push(["קבלן","קבלן ראשי", contractorContract||"", contractorPaid||"", contractorContract-contractorPaid, contractorContract||"","", bs.contractorNotes||""]);
+    budgetRows.push(["סה״כ קבלן","", contractorContract, contractorPaid, contractorContract-contractorPaid,"","",""]);
 
     // ── תקורות ──
-    const baseForOverhead   = consultantsTotalExport + feeTotalContractExport + contractorContract;
-    const overheadPct       = Number(bs.overheadPct||4);
-    const overheadAmt       = baseForOverhead * overheadPct / 100;
-    const overheadPaid      = Number(bs.overheadPaid||0);
-    const bcmBase           = baseForOverhead + overheadAmt;
-    const bcmPct            = Number(bs.bcmPct||0);
-    const bcmAmt            = bcmBase * bcmPct / 100;
-    const bcmPaid           = Number(bs.bcmPaid||0);
-    const vatPct            = Number(bs.vatPct||18);
-    const vatAmt            = (bcmBase + bcmAmt) * vatPct / 100;
-    const vatPaid           = Number(bs.vatPaid||0);
-    const overheadTotalAmt  = overheadAmt + bcmAmt + vatAmt;
+    const baseForOverhead  = consultantsTotalExport + feeTotalContractExport + contractorContract;
+    const overheadPct      = Number(bs.overheadPct||4);
+    const overheadAmt      = baseForOverhead * overheadPct / 100;
+    const overheadPaid     = Number(bs.overheadPaid||0);
+    const bcmBase          = baseForOverhead + overheadAmt;
+    const bcmPct           = Number(bs.bcmPct||0);
+    const bcmAmt           = bcmBase * bcmPct / 100;
+    const bcmPaid          = Number(bs.bcmPaid||0);
+    const vatPct           = Number(bs.vatPct||18);
+    const vatAmt           = (bcmBase + bcmAmt) * vatPct / 100;
+    const vatPaid          = Number(bs.vatPaid||0);
+    const overheadTotalAmt = overheadAmt + bcmAmt + vatAmt;
     budgetRows.push(["── תקורות ──","","","","","","",""]);
     budgetRows.push(["תקורות","תקורות חברה עירונית ("+overheadPct+"%)", overheadAmt, overheadPaid, overheadAmt-overheadPaid,"","", bs.overheadNotes||""]);
     budgetRows.push(["תקורות","בצ״מ ("+bcmPct+"%)", bcmAmt, bcmPaid, bcmAmt-bcmPaid,"","", bs.bcmNotes||""]);
@@ -4270,7 +4265,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     // ── סה"כ כללי ──
     const grandTotalContract = consultantsTotalExport + feeTotalContractExport + contractorContract + overheadTotalAmt;
     const grandTotalPaid     = consultantsPaidExport + feeTotalPaidExport + contractorPaid + overheadPaid + bcmPaid + vatPaid;
-    budgetRows.push(["סה״כ כללי","", grandTotalContract, grandTotalPaid, grandTotalContract - grandTotalPaid,"","",""]);
+    budgetRows.push(["סה״כ כללי","", grandTotalContract, grandTotalPaid, grandTotalContract-grandTotalPaid,"","",""]);
 
     const budgetWsFinal = XLSX.utils.aoa_to_sheet(budgetRows);
     XLSX.utils.book_append_sheet(wb, budgetWsFinal, "תקציב הפרויקט");
