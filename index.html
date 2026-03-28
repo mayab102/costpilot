@@ -4232,7 +4232,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     budgetRows.push(["סה כ יועצים", "", xConsTotal, xConsPaid, xConsTotal - xConsPaid, "", "", ""]);
 
     // אגרות
-    var xFeeRows = (bs.feeRows || []);
+    var xFixedFeeNames = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
+    var xFeeRows = bs.feeRows || xFixedFeeNames.map(function(name) { return { id:name, name:name, contract:"", paid:"", planOnly:"", noClaims:false, notes:"" }; });
     var xExtraFee = (bs.extraFeeRows || []);
     var xAllFees = xFeeRows.concat(xExtraFee);
     var xFeeTot = 0, xFeePaid = 0;
@@ -4248,29 +4249,35 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     // קבלן
     var xCC = Number(bs.contractorContract||0);
     var xCP = Number(bs.contractorPaid||0);
+    var xCNoClaims = !!bs.contractorNoClaims;
+    var xCPlanOnly = Number(bs.contractorPlanOnly||0);
+    var xCRem = xCNoClaims ? 0 : xCC - xCP;
     budgetRows.push(["", "", "", "", "", "", "", ""]);
     budgetRows.push(["קבלן", "", "", "", "", "", "", ""]);
-    budgetRows.push(["קבלן", "קבלן ראשי", xCC||"", xCP||"", xCC-xCP, xCC||"", "", bs.contractorNotes||""]);
-    budgetRows.push(["סה כ קבלן", "", xCC, xCP, xCC - xCP, "", "", ""]);
+    budgetRows.push(["קבלן", "קבלן ראשי", xCC||"", xCP||"", xCRem, xCPlanOnly||"", xCNoClaims?"כן":"לא", bs.contractorNotes||""]);
+    budgetRows.push(["סה כ קבלן", "", xCC, xCP, xCRem, "", "", ""]);
 
     // תקורות
     var xBase  = xConsTotal + xFeeTot + xCC;
     var xOP    = Number(bs.overheadPct||4);
     var xOA    = xBase * xOP / 100;
     var xOPaid = Number(bs.overheadPaid||0);
+    var xOPlanOnly = Number(bs.overheadPlanOnly||0);
     var xBB    = xBase + xOA;
     var xBP    = Number(bs.bcmPct||0);
     var xBA    = xBB * xBP / 100;
     var xBPaid = Number(bs.bcmPaid||0);
+    var xBPlanOnly = Number(bs.bcmPlanOnly||0);
     var xVP    = Number(bs.vatPct||18);
     var xVA    = (xBB + xBA) * xVP / 100;
     var xVPaid = Number(bs.vatPaid||0);
+    var xVPlanOnly = Number(bs.vatPlanOnly||0);
     var xOhTot = xOA + xBA + xVA;
     budgetRows.push(["", "", "", "", "", "", "", ""]);
     budgetRows.push(["תקורות", "", "", "", "", "", "", ""]);
-    budgetRows.push(["תקורות", "תקורות חברה עירונית " + xOP + "%", xOA, xOPaid, xOA-xOPaid, "", "", bs.overheadNotes||""]);
-    budgetRows.push(["תקורות", "בצמ " + xBP + "%", xBA, xBPaid, xBA-xBPaid, "", "", bs.bcmNotes||""]);
-    budgetRows.push(["תקורות", "מעמ " + xVP + "%", xVA, xVPaid, xVA-xVPaid, "", "", bs.vatNotes||""]);
+    budgetRows.push(["תקורות חברה עירונית", xOP + "%", xOA, xOPaid, xOA-xOPaid, xOPlanOnly||"", "", bs.overheadNotes||""]);
+    budgetRows.push(["בצמ", xBP + "%", xBA, xBPaid, xBA-xBPaid, xBPlanOnly||"", "", bs.bcmNotes||""]);
+    budgetRows.push(["מעמ", xVP + "%", xVA, xVPaid, xVA-xVPaid, xVPlanOnly||"", "", bs.vatNotes||""]);
     budgetRows.push(["סה כ תקורות", "", xOhTot, xOPaid+xBPaid+xVPaid, xOhTot-(xOPaid+xBPaid+xVPaid), "", "", ""]);
 
     // סה"כ כללי
@@ -4297,13 +4304,16 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contractorRows), "חשבון קבלן סופי");
 
-    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"base64" });
+    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
+    const blob = new Blob([wbout], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
-    a.download = proj.name + ".xlsx";
+    a.href = blobUrl;
+    a.download = (proj.name || "פרויקט").replace(/[\/\\:*?"<>|]/g, "_") + ".xlsx";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
