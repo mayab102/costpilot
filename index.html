@@ -4297,16 +4297,13 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contractorRows), "חשבון קבלן סופי");
 
-    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
-    const blob = new Blob([wbout], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-    const blobUrl = URL.createObjectURL(blob);
-    const dlLink = document.createElement("a");
-    dlLink.href = blobUrl;
-    dlLink.download = (proj.name||"פרויקט") + ".xlsx";
-    dlLink.style.display = "none";
-    document.body.appendChild(dlLink);
-    dlLink.click();
-    setTimeout(function(){ document.body.removeChild(dlLink); URL.revokeObjectURL(blobUrl); }, 1000);
+    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"base64" });
+    const a = document.createElement("a");
+    a.href = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
+    a.download = proj.name + ".xlsx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
