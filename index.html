@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script type="module">
     // Suppress Babel warning
     const _warn = console.warn.bind(console);
@@ -4240,13 +4241,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contractorRows), "חשבון קבלן סופי");
 
-    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"base64" });
-    const a = document.createElement("a");
-    a.href = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
-    a.download = `${proj.name}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
+    saveAs(new Blob([wbout], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), proj.name + ".xlsx");
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
