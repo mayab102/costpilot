@@ -2194,7 +2194,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
               </td>
               <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>קיזוז דמי הקמה</td>
               <td style={{ padding:"5px 10px" }}>
-                <input type="text" inputMode="numeric" value={bs.setupOffset&&!isNaN(Number(String(bs.setupOffset).replace(/,/g,"")))?Number(String(bs.setupOffset).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("setupOffset",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                <input type="text" value={bs.setupOffset&&!isNaN(Number(String(bs.setupOffset).replace(/,/g,"")))?Number(String(bs.setupOffset).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("setupOffset",e.target.value.replace(/,/g,""))} onFocus={e=>{const raw=String(bs.setupOffset||"");e.target.value=raw;upd("setupOffset",raw);}} onBlur={e=>{const n=Number(e.target.value.replace(/,/g,""));upd("setupOffset",isNaN(n)?"":n);}} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
               </td>
             </tr>
             {/* כתב כמויות / סה"כ אישור */}
@@ -2229,7 +2229,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                   </div>
                 </td>
                 <td style={{ padding:"5px 8px", overflow:"hidden" }}>
-                  <input type="text" inputMode="numeric" value={x.amount&&!isNaN(Number(x.amount))?Number(x.amount).toLocaleString("en-US"):""} onChange={e=>upd("extraItems",extraItems.map(ei=>ei.id===x.id?{...ei,amount:e.target.value.replace(/,/g,"")}:ei))}
+                  <input type="text" value={x.amount&&!isNaN(Number(x.amount))?Number(x.amount).toLocaleString("en-US"):""} onChange={e=>upd("extraItems",extraItems.map(ei=>ei.id===x.id?{...ei,amount:e.target.value.replace(/,/g,"")}:ei))} onFocus={e=>{ const raw=String(x.amount||""); e.target.value=raw; upd("extraItems",extraItems.map(ei=>ei.id===x.id?{...ei,amount:raw}:ei)); }} onBlur={e=>{ const n=Number(e.target.value.replace(/,/g,"")); upd("extraItems",extraItems.map(ei=>ei.id===x.id?{...ei,amount:isNaN(n)?"":n}:ei)); }}
                     placeholder="0" style={{ width:"100%", textAlign:"right", background:"#fff", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 6px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
                 </td>
               </tr>
