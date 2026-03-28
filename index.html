@@ -42,7 +42,7 @@
     // ── Firebase helpers ─────────────────────────────────────────────────────
     const getFirebase = () => window._firebase;
 
-    // נתונים משותפים — נשמרים ב-shared/appdata
+    // נתונים משותפים - נשמרים ב-shared/appdata
     const saveShared = async (key, data) => {
       try {
         const { db, doc, setDoc } = getFirebase();
@@ -76,8 +76,8 @@
       } catch(e) { console.error("save role error", e); }
     };
 
-    // נתונים משותפים — projects, allData נשמרים תחת מפתח קבוע
-    // נתונים אישיים — suppliers, companies, milestones, statsRows נשמרים לפי uid
+    // נתונים משותפים - projects, allData נשמרים תחת מפתח קבוע
+    // נתונים אישיים - suppliers, companies, milestones, statsRows נשמרים לפי uid
     const SHARED_KEYS = ["projects", "allData"];
     const saveToFirestore = (uid, key, data) => {
       const storageKey = SHARED_KEYS.includes(key) ? key : `${uid}_${key}`;
@@ -321,7 +321,7 @@ function App() {
                 // טעינת הרשאות
                 const roleData = await loadUserRole(u.uid);
                 if (roleData) {
-                  // קיים — אל תדרוס, רק עדכן מייל אם חסר
+                  // קיים - אל תדרוס, רק עדכן מייל אם חסר
                   if (!roleData.email && u.email) {
                     const updated = { ...roleData, email: u.email };
                     await saveUserRole(u.uid, updated);
@@ -330,7 +330,7 @@ function App() {
                     setUserRole(roleData);
                   }
                 } else {
-                  // משתמש חדש — ברירת מחדל user
+                  // משתמש חדש - ברירת מחדל user
                   const newRole = { role: "user", projects: [], email: u.email || "" };
                   await saveUserRole(u.uid, newRole);
                   setUserRole(newRole);
@@ -1649,7 +1649,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
     ? consultantFees.find(c=>c.name===selConsultant.name && c.field===selConsultant.field)
     : null;
 
-  // Navigate to invoice from dashboard — runs after consultantFees is ready
+  // Navigate to invoice from dashboard - runs after consultantFees is ready
   React.useEffect(() => {
     if (!openInvoiceId || consultantFees.length === 0) return;
     const inv = rows.find(r => r.id === openInvoiceId);
@@ -1723,7 +1723,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
       const key = "m-" + m.id;
       const origAmt = sel.fee * Number(m.pct||0) / 100;
       const paid = rowTotal(key);
-      if (paid >= origAmt) return; // already fully paid — no change
+      if (paid >= origAmt) return; // already fully paid - no change
       // New amount for this milestone = remainingToPay × (m.pct / 100)
       const newAmt = remainingToPay * Number(m.pct||0) / 100;
       deductions[key] = origAmt - newAmt; // how much to subtract from display
@@ -2073,7 +2073,7 @@ function NumInput({ value, onChange }) {
 
 // ── Shared helper: build the exact rows shown in BudgetTab ───────────────────
 // Used by BOTH BudgetTab (display) and exportProjectToExcel (export).
-// Export reads these rows directly — NO re-computation.
+// Export reads these rows directly - NO re-computation.
 function buildBudgetAllRows({ quotesRows, consultantsRows, budgetState, statsRows, accountsRows, planOnlyMap }) {
   const contractorEst = Number((budgetState||{}).contractorEst || 0);
   const devPct        = Number((statsRows||[]).find(r => r.field === "פיתוח")?.pct || 0);
@@ -2115,7 +2115,7 @@ function buildBudgetAllRows({ quotesRows, consultantsRows, budgetState, statsRow
 }
 
 function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetState, setBudgetState, statsRows, accountsTotalPaid, accountsRows, planOnlyMap, onNavigate, openingData }) {
-  // ── Consultants table — use shared helper (same data as export) ───────────
+  // ── Consultants table - use shared helper (same data as export) ───────────
   const allRows = buildBudgetAllRows({ quotesRows, consultantsRows, budgetState, statsRows, accountsRows, planOnlyMap });
   // _contractorEst needed by render logic (hasCalc / noBase)
   const _contractorEst = Number((budgetState||{}).contractorEst || 0);
@@ -3951,7 +3951,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
   const [allData, setAllData] = useState({});
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  // סינון פרויקטים לפי הרשאה — אחרי שה-state מוגדר
+  // סינון פרויקטים לפי הרשאה - אחרי שה-state מוגדר
   const visibleProjects = isAdmin
     ? projects
     : projects.filter(p => ((userRole?.projects) || []).includes(String(p.id)));
@@ -3968,7 +3968,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
           loadFromFirestore(uid, "milestones"),
           loadFromFirestore(uid, "statsRows"),
         ]);
-        // אם אין נתונים ב-Firestore — טען מנתוני migration
+        // אם אין נתונים ב-Firestore - טען מנתוני migration
         if (savedProjects)   setProjects(savedProjects);
         if (savedAllData)    setAllData(savedAllData);
         if (savedSuppliers)  setSuppliers(savedSuppliers);
@@ -4030,7 +4030,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupText, setBackupText] = useState("");
 
-  // Auto-save to Firestore — must be before any early return
+  // Auto-save to Firestore - must be before any early return
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
   useEffect(() => { if (dataLoaded) saveToFirestore(uid, "allData", allData); }, [allData, dataLoaded]);
 
@@ -4113,7 +4113,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(consRows), "רשימת יועצים");
 
-    // 4. ריכוז חשבונות — build milestone name map
+    // 4. ריכוז חשבונות - build milestone name map
     const milestoneNameMap = {};
     const cId = d.companyId || "";
     if (cId && milestones?.[cId]) {
@@ -4176,7 +4176,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
       });
     })();
 
-    // קורא לאותה פונקציה שמשמשת את BudgetTab — מובטח זהה למסך
+    // קורא לאותה פונקציה שמשמשת את BudgetTab - מובטח זהה למסך
     const exportAllRows = buildBudgetAllRows({
       quotesRows:      d.quotes      || [],
       consultantsRows: d.consultants || [],
@@ -4201,7 +4201,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     budgetRows.push(["פירוט תקציב הפרויקט",""]);
     budgetRows.push(["שם המקצוע","שם היועץ","סכום התקשרות","סכום מצטבר ששולם","יתרה לתשלום","סכום התקשרות לשלב התכנון","העדר תביעות","הערות"]);
 
-    // כותבים ישירות את השדות שכבר נמצאים ב-exportAllRows — בלי שום חישוב נוסף
+    // כותבים ישירות את השדות שכבר נמצאים ב-exportAllRows - בלי שום חישוב נוסף
     // budgetRows.length כאן = מספר השורות כולל כותרת הפירוט = index הראשון של נתוני יועצים (0-based)
     const detailDataStartRow = budgetRows.length; // זה ה-row index (0-based) של שורת יועצים ראשונה
 
@@ -4221,6 +4221,63 @@ function AppInner({ currentUser, userRole, setUserRole }) {
         r.notes,
       ]);
     });
+
+    // סה"כ יועצים
+    var xConsTotal = 0, xConsPaid = 0;
+    exportAllRows.forEach(function(r) {
+      xConsTotal += (r.payType === "אחוזים" ? r.computedFee : r.value) + r.increases;
+      xConsPaid  += (r.paid || 0);
+    });
+    budgetRows.push(["", "", "", "", "", "", "", ""]);
+    budgetRows.push(["סה כ יועצים", "", xConsTotal, xConsPaid, xConsTotal - xConsPaid, "", "", ""]);
+
+    // אגרות
+    var xFeeRows = (exportBState.feeRows || []);
+    var xExtraFee = (exportBState.extraFeeRows || []);
+    var xAllFees = xFeeRows.concat(xExtraFee);
+    var xFeeTot = 0, xFeePaid = 0;
+    budgetRows.push(["", "", "", "", "", "", "", ""]);
+    budgetRows.push(["אגרות", "", "", "", "", "", "", ""]);
+    xAllFees.forEach(function(r) {
+      var c = Number(r.contract||0), p = Number(r.paid||0);
+      xFeeTot += c; xFeePaid += p;
+      budgetRows.push(["אגרות", r.name||"", c||"", p||"", r.noClaims?0:c-p, c||"", r.noClaims?"כן":"לא", r.notes||""]);
+    });
+    budgetRows.push(["סה כ אגרות", "", xFeeTot, xFeePaid, xFeeTot - xFeePaid, "", "", ""]);
+
+    // קבלן
+    var xCC = Number(exportBState.contractorContract||0);
+    var xCP = Number(exportBState.contractorPaid||0);
+    budgetRows.push(["", "", "", "", "", "", "", ""]);
+    budgetRows.push(["קבלן", "", "", "", "", "", "", ""]);
+    budgetRows.push(["קבלן", "קבלן ראשי", xCC||"", xCP||"", xCC-xCP, xCC||"", "", exportBState.contractorNotes||""]);
+    budgetRows.push(["סה כ קבלן", "", xCC, xCP, xCC - xCP, "", "", ""]);
+
+    // תקורות
+    var xBase  = xConsTotal + xFeeTot + xCC;
+    var xOP    = Number(exportBState.overheadPct||4);
+    var xOA    = xBase * xOP / 100;
+    var xOPaid = Number(exportBState.overheadPaid||0);
+    var xBB    = xBase + xOA;
+    var xBP    = Number(exportBState.bcmPct||0);
+    var xBA    = xBB * xBP / 100;
+    var xBPaid = Number(exportBState.bcmPaid||0);
+    var xVP    = Number(exportBState.vatPct||18);
+    var xVA    = (xBB + xBA) * xVP / 100;
+    var xVPaid = Number(exportBState.vatPaid||0);
+    var xOhTot = xOA + xBA + xVA;
+    budgetRows.push(["", "", "", "", "", "", "", ""]);
+    budgetRows.push(["תקורות", "", "", "", "", "", "", ""]);
+    budgetRows.push(["תקורות", "תקורות חברה עירונית " + xOP + "%", xOA, xOPaid, xOA-xOPaid, "", "", exportBState.overheadNotes||""]);
+    budgetRows.push(["תקורות", "בצמ " + xBP + "%", xBA, xBPaid, xBA-xBPaid, "", "", exportBState.bcmNotes||""]);
+    budgetRows.push(["תקורות", "מעמ " + xVP + "%", xVA, xVPaid, xVA-xVPaid, "", "", exportBState.vatNotes||""]);
+    budgetRows.push(["סה כ תקורות", "", xOhTot, xOPaid+xBPaid+xVPaid, xOhTot-(xOPaid+xBPaid+xVPaid), "", "", ""]);
+
+    // סה"כ כללי
+    var xGrand     = xConsTotal + xFeeTot + xCC + xOhTot;
+    var xGrandPaid = xConsPaid  + xFeePaid + xCP + xOPaid + xBPaid + xVPaid;
+    budgetRows.push(["", "", "", "", "", "", "", ""]);
+    budgetRows.push(["סה כ כללי", "", xGrand, xGrandPaid, xGrand - xGrandPaid, "", "", ""]);
 
     const budgetWsFinal = XLSX.utils.aoa_to_sheet(budgetRows);
     XLSX.utils.book_append_sheet(wb, budgetWsFinal, "תקציב הפרויקט");
@@ -4296,7 +4353,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
       const projData = prev[projId] || makeProjectData();
       const currentRows = projData[tabKey] || [];
       let newRows = typeof newRowsOrFn === "function" ? newRowsOrFn(currentRows) : newRowsOrFn;
-      // Clean invalid invoices — remove rows with non-positive amount AND no invoiceNum AND not brand new
+      // Clean invalid invoices - remove rows with non-positive amount AND no invoiceNum AND not brand new
       if (tabKey === "accounts") {
         const now = Date.now();
         newRows = newRows.filter(r => Number(r.amount) > 0 || r.invoiceNum || (now - (r.createdAt||0)) < 60000);
