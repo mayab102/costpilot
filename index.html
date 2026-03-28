@@ -4298,7 +4298,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contractorRows), "חשבון קבלן סופי");
 
     const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
-    const blob = new Blob([wbout], {type:"application/octet-stream"});
+    const blob = new Blob([wbout], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const blobUrl = URL.createObjectURL(blob);
     const dlLink = document.createElement("a");
     dlLink.href = blobUrl;
