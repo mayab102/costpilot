@@ -4222,9 +4222,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
       ]);
     });
 
-    const enhancedRows = window._enhanceExport ? window._enhanceExport(exportBState, exportAllRows, proj.name) : null;
-    const finalBudgetRows = enhancedRows || budgetRows;
-    const budgetWsFinal = XLSX.utils.aoa_to_sheet(finalBudgetRows);
+    const budgetWsFinal = XLSX.utils.aoa_to_sheet(budgetRows);
     XLSX.utils.book_append_sheet(wb, budgetWsFinal, "תקציב הפרויקט");
 
     // 6. תוצאות מכרז
@@ -4997,69 +4995,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     ReactDOM.createRoot(document.getElementById("root")).render(
       <ErrorBoundary><App /></ErrorBoundary>
     );
-  </script>
-  <script>
-  // שיפור ייצוא - רץ ב-plain JS, לא Babel
-  window._enhanceExport = function(bs, exportAllRows, projName) {
-    var XLSX = window.XLSX;
-    if (!XLSX) return null;
-    var wb = XLSX.utils.book_new();
-
-    // שורות בסיס
-    var rows = [
-      ["שם המקצוע / סעיף","שם היועץ / תיאור","סכום התקשרות","סכום מצטבר ששולם","יתרה לתשלום","סכום לשלב התכנון","העדר תביעות","הערות"]
-    ];
-
-    // יועצים
-    rows.push(["יועצים","","","","","","",""]);
-    var consTotal = 0, consPaid = 0;
-    exportAllRows.forEach(function(r) {
-      var base = r.payType === "אחוזים" ? r.computedFee : r.value;
-      var total = base + r.increases;
-      consTotal += total;
-      consPaid += (r.paid || 0);
-      rows.push([r.field, r.name, total, r.paid||0, total-(r.paid||0), r.planOnly>0?r.planOnly:"", r.noClaims?"כן":"לא", r.notes||""]);
-    });
-    rows.push(["סה כ יועצים","", consTotal, consPaid, consTotal-consPaid,"","",""]);
-
-    // אגרות
-    rows.push(["אגרות","","","","","","",""]);
-    var feeRows = bs.feeRows || [];
-    var extraFeeRows = bs.extraFeeRows || [];
-    var allFees = feeRows.concat(extraFeeRows);
-    var feeTot = 0, feePaid = 0;
-    allFees.forEach(function(r) {
-      var c = Number(r.contract||0), p = Number(r.paid||0);
-      feeTot += c; feePaid += p;
-      rows.push(["אגרות", r.name||"", c||"", p||"", r.noClaims?0:c-p, c||"", r.noClaims?"כן":"לא", r.notes||""]);
-    });
-    rows.push(["סה כ אגרות","", feeTot, feePaid, feeTot-feePaid,"","",""]);
-
-    // קבלן
-    var cc = Number(bs.contractorContract||0), cp = Number(bs.contractorPaid||0);
-    rows.push(["קבלן","","","","","","",""]);
-    rows.push(["קבלן","קבלן ראשי", cc||"", cp||"", cc-cp, cc||"","", bs.contractorNotes||""]);
-    rows.push(["סה כ קבלן","", cc, cp, cc-cp,"","",""]);
-
-    // תקורות
-    var base = consTotal + feeTot + cc;
-    var oPct = Number(bs.overheadPct||4), oAmt = base*oPct/100, oPaid = Number(bs.overheadPaid||0);
-    var bBase = base+oAmt, bPct = Number(bs.bcmPct||0), bAmt = bBase*bPct/100, bPaid = Number(bs.bcmPaid||0);
-    var vPct = Number(bs.vatPct||18), vAmt = (bBase+bAmt)*vPct/100, vPaid = Number(bs.vatPaid||0);
-    var ohTot = oAmt+bAmt+vAmt;
-    rows.push(["תקורות","","","","","","",""]);
-    rows.push(["תקורות","תקורות חברה עירונית ("+oPct+"%)", oAmt, oPaid, oAmt-oPaid,"","", bs.overheadNotes||""]);
-    rows.push(["תקורות","בצמ ("+bPct+"%)", bAmt, bPaid, bAmt-bPaid,"","", bs.bcmNotes||""]);
-    rows.push(["תקורות","מעמ ("+vPct+"%)", vAmt, vPaid, vAmt-vPaid,"","", bs.vatNotes||""]);
-    rows.push(["סה כ תקורות","", ohTot, oPaid+bPaid+vPaid, ohTot-(oPaid+bPaid+vPaid),"","",""]);
-
-    // סה כ כללי
-    var grandTot = consTotal+feeTot+cc+ohTot;
-    var grandPaid = consPaid+feePaid+cp+oPaid+bPaid+vPaid;
-    rows.push(["סה כ כללי","", grandTot, grandPaid, grandTot-grandPaid,"","",""]);
-
-    return rows;
-  };
   </script>
 </body>
 </html>
