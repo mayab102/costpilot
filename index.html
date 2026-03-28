@@ -4241,12 +4241,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contractorRows), "חשבון קבלן סופי");
 
     const wbout = XLSX.write(wb, { bookType:"xlsx", type:"base64" });
-    const a = document.createElement("a");
-    a.href = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
-    a.download = `${proj.name}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const url = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + wbout;
+    window.location.href = url;
   };
 
   // ── Backup all data to JSON ──────────────────────────────────────────────
