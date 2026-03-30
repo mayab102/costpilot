@@ -831,6 +831,9 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
 
       {/* Table */}
       <div style={{ overflowX:"auto" }}>
+        {(() => {
+          const showAmtCol = field.consultants.some(c => c.payType === "אחוזים");
+          return (
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
           <thead>
             <tr style={{ borderBottom:"2px solid #e8edf4", background:"#fafbfd" }}>
@@ -839,12 +842,12 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                 { h:"שם היועץ", w:undefined },
                 { h:"סוג תשלום", w:undefined },
                 { h:"ערך", w:undefined },
-                { h:"סכום (ש״ח)", w:undefined },
+                showAmtCol ? { h:"סכום (ש״ח)", w:undefined } : null,
                 { h:"הערות בחירה", w:undefined },
                 { h:"הועבר לחברה עירונית", w:80 },
                 { h:"היועץ אושר", w:70 },
                 { h:"", w:undefined },
-              ].map(({h,w},hi) => (
+              ].filter(Boolean).map(({h,w},hi) => (
                 <th key={hi} style={{ padding:"9px 8px", textAlign:"right", color:"#64748b", fontWeight:700, fontSize:11, whiteSpace:"normal", lineHeight:1.3, maxWidth:w, width:w, verticalAlign:"bottom" }}>{h}</th>
               ))}
             </tr>
@@ -852,7 +855,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
           <tbody>
             {field.consultants.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ padding:24, textAlign:"right", color:"#94a3b8", fontSize:13 }}>
+                <td colSpan={showAmtCol ? 9 : 8} style={{ padding:24, textAlign:"right", color:"#94a3b8", fontSize:13 }}>
                   אין יועצים — לחץ "הוסף יועץ"
                 </td>
               </tr>
@@ -886,16 +889,17 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                   <div style={{ display:"flex", alignItems:"center", gap:3, direction:"rtl" }}>
                     <span style={{ color:"#64748b", fontSize:12, fontWeight:600, flexShrink:0 }}>{c.payType==="אחוזים"?"%":"₪"}</span>
                     <input
-                      type="text" inputMode="numeric"
-                      value={c.value !== "" && c.value !== undefined ? Number(c.value).toLocaleString("en-US") : ""}
-                      onChange={e => updateC(c.id,"value", e.target.value.replace(/,/g,""))}
+                      type="text" inputMode="decimal"
+                      value={c.value ?? ""}
+                      onChange={e => updateC(c.id,"value", e.target.value)}
                       placeholder="0"
                       style={{ background:"transparent", border:"1px solid #e2e8f0", borderRadius:6, padding:"5px 7px", fontSize:13, color:"#1e293b", fontFamily:"'Heebo',sans-serif", outline:"none", width:65, textAlign:"right" }}
-                      onFocus={e => { e.target.style.borderColor="#475569"; e.target.value = c.value||""; }}
-                      onBlur={e  => { e.target.style.borderColor="#e2e8f0"; e.target.value = c.value !== "" && c.value !== undefined ? Number(c.value).toLocaleString("en-US") : ""; }} />
+                      onFocus={e => e.target.style.borderColor="#475569"}
+                      onBlur={e  => e.target.style.borderColor="#e2e8f0"} />
                   </div>
                 </td>
-                {/* סכום בש"ח (רק לאחוזים) */}
+                {/* סכום בש"ח (רק כשיש שורות אחוזים) */}
+                {showAmtCol && (
                 <td style={{ padding:"10px 8px", minWidth:90, textAlign:"right" }}>
                   {c.payType === "אחוזים" && (() => {
                     const cEst = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"")) || Number((budgetState||{}).contractorEst||0);
@@ -910,6 +914,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                     return fee ? <span style={{ fontSize:12, color:"#475569" }}>{fmt(fee)}</span> : <span style={{ fontSize:11, color:"#94a3b8" }}>—</span>;
                   })()}
                 </td>
+                )}
                 {/* הערות */}
                 <td style={{ padding:"10px 12px", minWidth:160 }}>
                   <input value={c.notes} onChange={e => updateC(c.id,"notes",e.target.value)}
@@ -937,6 +942,8 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
             ))}
           </tbody>
         </table>
+          );
+        })()}
       </div>
 
     </Card>
@@ -1310,9 +1317,8 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
               <input type="number" value={inc.amount} onChange={e=>setInc({...inc,amount:e.target.value})}
                 style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#1e293b", fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"right" }}
                 onFocus={e=>e.target.style.borderColor="#475569"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
-              <input type="date" value={inc.date} onChange={e=>setInc({...inc,date:e.target.value})}
-                style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#1e293b", fontFamily:"'Heebo',sans-serif", outline:"none", direction:"ltr" }}
-                onFocus={e=>e.target.style.borderColor="#475569"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+              <FlatpickrDate value={inc.date} onChange={v=>setInc({...inc,date:v})}
+                style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#1e293b", fontFamily:"'Heebo',sans-serif", outline:"none" }} />
               <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
                 <input type="checkbox" checked={!!inc.planOnly} onChange={e=>setInc({...inc,planOnly:e.target.checked})}
                   style={{ width:16, height:16, cursor:"pointer" }} />
@@ -1328,6 +1334,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
 
 function ConsultantsTab({ rows, setRows, quotesRows, budgetState, statsRows, openConsultantId, scrollToIncreaseId, suppliers, projectName }) {
   const [openId, setOpenId] = useState(openConsultantId || null);
+  const [search, setSearch] = useState("");
 
   React.useEffect(() => {
     if (openConsultantId) setOpenId(openConsultantId);
@@ -1406,6 +1413,15 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
         )}
       </div>
 
+      {rows.length > 0 && (
+        <div style={{ position:"relative" }}>
+          <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#94a3b8", fontSize:15 }}>🔍</span>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="חיפוש לפי שם יועץ או תחום..."
+            style={{ width:"100%", padding:"9px 38px 9px 12px", border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box", direction:"rtl" }}
+            onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+        </div>
+      )}
       {rows.length === 0 ? (
         <Card style={{ textAlign:"right", padding:48, color:"#94a3b8" }}>
           <div style={{ fontSize:36, marginBottom:12 }}>👥</div>
@@ -1414,7 +1430,9 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
         </Card>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
-          {[...rows].sort((a,b) => (a.field||"").localeCompare(b.field||"", 'he')).map(r => {
+          {[...rows].sort((a,b) => (a.role||"").localeCompare(b.role||"", 'he'))
+            .filter(r => { const q = search.trim().toLowerCase(); return !q || (r.name||"").toLowerCase().includes(q) || (r.role||"").toLowerCase().includes(q); })
+            .map(r => {
             const increases  = r.increases || [];
             const totalInc   = increases.filter(x => x.approvedIncrease).reduce((s,x) => s+Number(x.amount||0), 0);
             const hasInc     = totalInc !== 0;
@@ -1513,6 +1531,8 @@ function DatePickerCell({ value, onChange, style }) {
 function FlatpickrDate({ value, onChange, style }) {
   const ref = useRef(null);
   const fpRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange; // always keep latest, no stale closure
 
   useEffect(() => {
     // Load flatpickr CSS + JS dynamically
@@ -1539,7 +1559,7 @@ function FlatpickrDate({ value, onChange, style }) {
           const y = date.getFullYear();
           const m = String(date.getMonth()+1).padStart(2,"0");
           const d = String(date.getDate()).padStart(2,"0");
-          onChange(`${y}-${m}-${d}`);
+          onChangeRef.current(`${y}-${m}-${d}`); // always calls latest onChange
         }
       });
       // set initial value
@@ -1745,7 +1765,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
       return [...prev, newRow];
     });
   };
-  const updateInvoice = (id, patch) => setRows(rows.map(r=>r.id===id?{...r,...patch}:r));
+  const updateInvoice = (id, patch) => setRows(prev => prev.map(r=>r.id===id?{...r,...patch}:r));
   const removeInvoice = id => setRows(rows.filter(r=>r.id!==id));
 
   const setNoClaims = (val) => {
@@ -2165,7 +2185,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                 {sel.noClaims && (
                   <tr style={{ background:"#fffbeb" }}>
                     <td colSpan={7} style={{ padding:"6px 14px", fontSize:12, color:"#92400e", fontWeight:600 }}>
-                      ✓ התקבל העדר תביעות — לא ניתן להזין חשבונות נוספים
+                      ✓ העדר תביעות — יתרת תשלום מבוטלת
                     </td>
                   </tr>
                 )}
@@ -3201,7 +3221,7 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
 
       {/* Table */}
       <Card style={{ padding:0, overflow:"hidden" }}>
-        <table key={"t-"+search} style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+        <table key={"t-"+search} style={{ width:"100%", borderCollapse:"collapse", fontSize:13, direction:"rtl" }}>
           <thead>
             <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
               {["מקצוע / תחום","שם ספק / חברה","איש קשר","טלפון","נייד","מייל","הערות","פעולות"].map(h => (
@@ -3221,11 +3241,15 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
                     {["field","name","contact","phone","phone2","email","notes"].map(k => (
                       <td key={k} style={{ padding:"6px 8px" }}>
                         {k === "field"
-                          ? <select value={editForm[k]||""} onChange={e=>setEditForm({...editForm,[k]:e.target.value})}
-                              style={{ width:"100%", padding:"5px 8px", border:"1.5px solid #3b82f6", borderRadius:7, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#fff" }}>
-                              <option value="">בחר...</option>
-                              {[...new Set([...allFields,...(professions||[])])].map(f=><option key={f} value={f}>{f}</option>)}
-                            </select>
+                          ? <><input value={editForm[k]||""} onChange={e=>setEditForm({...editForm,[k]:e.target.value})}
+                              list={"field-opts-"+s.id}
+                              onKeyDown={e=>{ if(e.key==="Enter") saveEdit(); if(e.key==="Escape") setEditId(null); }}
+                              placeholder="תחום / מקצוע"
+                              style={{ width:"100%", padding:"5px 8px", border:"1.5px solid #3b82f6", borderRadius:7, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
+                            <datalist id={"field-opts-"+s.id}>
+                              {[...new Set([...allFields,...(professions||[])])].map(f=><option key={f} value={f}/>)}
+                            </datalist></>
+
                           : <input value={editForm[k]||""} onChange={e=>setEditForm({...editForm,[k]:e.target.value})}
                               onKeyDown={e=>{ if(e.key==="Enter") saveEdit(); if(e.key==="Escape") setEditId(null); }}
                               style={{ width:"100%", padding:"5px 8px", border:"1.5px solid #3b82f6", borderRadius:7, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
@@ -3236,14 +3260,14 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
                   </>
                 ) : (
                   <>
-                    <td style={{ padding:"11px 16px", color:"#374151", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.field||"—"}</td>
-                    <td style={{ padding:"11px 16px", fontWeight:700, color:"#1e293b", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.name}</td>
-                    <td style={{ padding:"11px 16px", color:"#374151", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.contact||"—"}</td>
-                    <td style={{ padding:"11px 16px", color:"#374151", direction:"ltr", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.phone||"—"}</td>
-                    <td style={{ padding:"11px 16px", color:"#374151", direction:"ltr", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.phone2||"—"}</td>
-                    <td style={{ padding:"11px 16px", color:"#334155", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.email ? <a href={"mailto:"+s.email} style={{color:"#334155"}}>{s.email}</a> : "—"}</td>
-                    <td style={{ padding:"11px 16px", color:"#374151", maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.notes||"—"}</td>
-                    <td style={{ padding:"11px 16px", whiteSpace:"nowrap" }}>
+                    <td style={{ padding:"11px 16px", color:"#374151", textAlign:"right", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.field||"—"}</td>
+                    <td style={{ padding:"11px 16px", fontWeight:700, color:"#1e293b", textAlign:"right", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.name}</td>
+                    <td style={{ padding:"11px 16px", color:"#374151", textAlign:"right", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.contact||"—"}</td>
+                    <td style={{ padding:"11px 16px", color:"#374151", textAlign:"right", direction:"ltr", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.phone||"—"}</td>
+                    <td style={{ padding:"11px 16px", color:"#374151", textAlign:"right", direction:"ltr", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.phone2||"—"}</td>
+                    <td style={{ padding:"11px 16px", color:"#334155", textAlign:"right", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.email ? <a href={"mailto:"+s.email} style={{color:"#334155"}}>{s.email}</a> : "—"}</td>
+                    <td style={{ padding:"11px 16px", color:"#374151", textAlign:"right", maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", cursor:"pointer" }} onDoubleClick={()=>{ setEditId(s.id); setEditForm({...s}); }}>{s.notes||"—"}</td>
+                    <td style={{ padding:"11px 16px", textAlign:"right", whiteSpace:"nowrap" }}>
                       <button onClick={()=>{ setEditId(s.id); setEditForm({...s}); }} style={{ background:"#f8fafc", color:"#334155", border:"none", borderRadius:6, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif", marginLeft:4 }}>✏️</button>
                       <button onClick={()=>del(s.id)} style={{ background:"#fef2f2", color:"#ef4444", border:"none", borderRadius:6, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>🗑</button>
                     </td>
@@ -3279,21 +3303,13 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
             {inp("שם ספק / חברה","name",form,setForm,"לדוגמה: משרד עמית נמליך")}
             <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
               <label style={{ fontSize:11, fontWeight:700, color:"#64748b" }}>מקצוע / תחום</label>
-              <div style={{ display:"flex", gap:6 }}>
-                <select value={allFields.concat(professions||[]).includes(form.field) ? form.field : (form.field ? "__custom__" : "")}
-                  onChange={e => setForm({...form, field: e.target.value === "__custom__" ? "" : e.target.value})}
-                  style={{ flex:1, padding:"7px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#fff" }}
-                  onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}>
-                  <option value="">בחר מקצוע...</option>
-                  {[...new Set([...allFields,...(professions||[])])].map(f=><option key={f} value={f}>{f}</option>)}
-                  <option value="__custom__">➕ מקצוע חדש...</option>
-                </select>
-              </div>
-              {(!allFields.concat(professions||[]).includes(form.field) || form.field === "") && (
-                <input value={form.field} onChange={e=>setForm({...form,field:e.target.value})}
-                  placeholder="הקלד שם מקצוע חדש..."
-                  style={{ padding:"7px 10px", border:"1.5px solid #3b82f6", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
-              )}
+              <input value={form.field} onChange={e=>setForm({...form,field:e.target.value})}
+                list="field-opts-new" placeholder="בחר או הקלד מקצוע..."
+                style={{ padding:"7px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }}
+                onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
+              <datalist id="field-opts-new">
+                {[...new Set([...allFields,...(professions||[])])].map(f=><option key={f} value={f}/>)}
+              </datalist>
             </div>
             {inp("איש קשר","contact",form,setForm,"שם מלא")}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
@@ -3767,8 +3783,11 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
     }
   };
 
-  const [filters, setFilters] = React.useState({});
-  const setFilter = (key, val) => setFilters(f => ({ ...f, [key]: val }));
+  // colFilters: { [fkey]: Set<string> } — undefined/null = no filter (all shown)
+  const [colFilters, setColFilters] = React.useState({});
+  const [openFilter, setOpenFilter]   = React.useState(null);
+  const [filterSearch, setFilterSearch] = React.useState("");
+  const [dropPos, setDropPos]         = React.useState({ top:0, left:0 });
 
   const inp = (projId, key, val) => (
     <input value={val||""} onChange={e=>upd(projId,key,e.target.value)}
@@ -3815,21 +3834,98 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
     }
   };
 
+  // Projects filtered by all columns EXCEPT targetFkey (for dropdown options)
+  const getFilteredExcept = (targetFkey) =>
+    projects.filter(p => cols.every(({fkey}) => {
+      if (!fkey || fkey === targetFkey) return true;
+      const sel = colFilters[fkey];
+      if (!sel || sel.size === 0) return true;
+      return sel.has(getVal(p, fkey));
+    }));
+
   const filteredProjects = projects.filter(p =>
     cols.every(({fkey}) => {
       if (!fkey) return true;
-      const fval = (filters[fkey]||"").trim().toLowerCase();
-      if (!fval) return true;
-      return getVal(p, fkey).toLowerCase().includes(fval);
+      const sel = colFilters[fkey];
+      if (!sel || sel.size === 0) return true;
+      return sel.has(getVal(p, fkey));
     })
   );
 
-  const hasFilters = Object.values(filters).some(v => v && v.trim());
+  const isFiltered = (fkey) => colFilters[fkey] && colFilters[fkey].size > 0;
+  const hasAnyFilter = cols.some(({fkey}) => fkey && isFiltered(fkey));
 
-  const filterInputStyle = {
-    width:"100%", border:"1px solid #cbd5e1", borderRadius:4, padding:"3px 5px",
-    fontSize:10, fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"right",
-    background:"#fff", color:"#1e293b", boxSizing:"border-box",
+  const openDropdown = (fkey, e) => {
+    e.stopPropagation();
+    if (openFilter === fkey) { setOpenFilter(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + 2, left: rect.left });
+    setOpenFilter(fkey);
+    setFilterSearch("");
+  };
+
+  const closeDropdown = () => setOpenFilter(null);
+
+  const renderDropdown = () => {
+    if (!openFilter) return null;
+    const fkey = openFilter;
+    const partial = getFilteredExcept(fkey);
+    const allVals = [...new Set(partial.map(p => getVal(p, fkey)))].sort((a,b)=>a.localeCompare(b,"he"));
+    const sel = colFilters[fkey] || new Set();
+    const isAllSelected = sel.size === 0; // size=0 means "all selected" (no filter)
+    const visibleVals = allVals.filter(v => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase()));
+
+    const toggle = (val) => {
+      setColFilters(prev => {
+        const cur = prev[fkey] ? new Set(prev[fkey]) : new Set();
+        if (cur.has(val)) cur.delete(val); else cur.add(val);
+        // if all vals selected, clear filter (size=0 = all)
+        if (cur.size === allVals.length) return { ...prev, [fkey]: new Set() };
+        return { ...prev, [fkey]: cur };
+      });
+    };
+
+    const selectAll  = () => setColFilters(prev => ({ ...prev, [fkey]: new Set() }));
+    const clearAll   = () => setColFilters(prev => ({ ...prev, [fkey]: new Set(allVals) }));
+    const isChecked  = (v) => isAllSelected ? true : sel.has(v);
+
+    return ReactDOM.createPortal(
+      <>
+        <div onClick={closeDropdown} style={{ position:"fixed", inset:0, zIndex:1999 }} />
+        <div onClick={e=>e.stopPropagation()}
+          style={{ position:"fixed", top:dropPos.top, left:dropPos.left, zIndex:2000,
+            background:"#fff", border:"1px solid #cbd5e1", borderRadius:8,
+            boxShadow:"0 6px 24px #0003", minWidth:200, maxWidth:280,
+            display:"flex", flexDirection:"column", padding:10, gap:6, direction:"rtl",
+            fontFamily:"'Heebo',sans-serif" }}>
+          <input autoFocus value={filterSearch} onChange={e=>setFilterSearch(e.target.value)}
+            placeholder="חיפוש..."
+            style={{ border:"1px solid #e2e8f0", borderRadius:5, padding:"5px 8px", fontSize:12,
+              outline:"none", textAlign:"right", fontFamily:"'Heebo',sans-serif", background:"#f8fafc" }} />
+          <div style={{ display:"flex", gap:6 }}>
+            <button onClick={selectAll} style={{ flex:1, background:"#eff6ff", color:"#2563eb", border:"none", borderRadius:5, padding:"4px 0", fontSize:11, cursor:"pointer", fontWeight:600 }}>בחר הכל</button>
+            <button onClick={clearAll}  style={{ flex:1, background:"#f1f5f9", color:"#64748b", border:"none", borderRadius:5, padding:"4px 0", fontSize:11, cursor:"pointer", fontWeight:600 }}>נקה הכל</button>
+          </div>
+          <div style={{ maxHeight:220, overflowY:"auto", display:"flex", flexDirection:"column", gap:1 }}>
+            {visibleVals.length === 0 && <div style={{ color:"#94a3b8", fontSize:11, padding:"6px 4px" }}>אין תוצאות</div>}
+            {visibleVals.map(val => (
+              <label key={val} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 6px", borderRadius:4,
+                cursor:"pointer", fontSize:12, background: isChecked(val) ? "#f0f9ff" : "#fff",
+                border: isChecked(val) ? "1px solid #bfdbfe" : "1px solid transparent" }}>
+                <input type="checkbox" checked={isChecked(val)} onChange={()=>toggle(val)}
+                  style={{ cursor:"pointer", width:14, height:14 }} />
+                <span style={{ flex:1 }}>{val || "(ריק)"}</span>
+              </label>
+            ))}
+          </div>
+          <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:6, display:"flex", justifyContent:"flex-end" }}>
+            <button onClick={closeDropdown}
+              style={{ background:"#2563eb", color:"#fff", border:"none", borderRadius:5, padding:"5px 14px", fontSize:12, cursor:"pointer", fontWeight:600 }}>אישור</button>
+          </div>
+        </div>
+      </>,
+      document.body
+    );
   };
 
   return (
@@ -3838,36 +3934,45 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
         <div>
           <div style={{ fontSize:11, color:"#64748b", fontWeight:700, letterSpacing:3, marginBottom:4 }}>גיליון גלובלי</div>
           <h1 style={{ fontSize:24, fontWeight:900, color:"#1e293b", margin:0 }}>📋 מידע ראשי</h1>
-          <div style={{ fontSize:13, color:"#94a3b8", marginTop:4 }}>סקירת כל הפרויקטים</div>
+          <div style={{ fontSize:13, color:"#94a3b8", marginTop:4 }}>סקירת כל הפרויקטים · {filteredProjects.length} מתוך {projects.length}</div>
         </div>
-        {hasFilters && (
-          <button onClick={()=>setFilters({})}
+        {hasAnyFilter && (
+          <button onClick={()=>setColFilters({})}
             style={{ fontSize:12, padding:"6px 14px", borderRadius:7, border:"1.5px solid #fca5a5", background:"#fff1f2", color:"#dc2626", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>
-            ✕ נקה סינון
+            ✕ נקה כל הסינון
           </button>
         )}
       </div>
+
+      {renderDropdown()}
 
       <Card style={{ padding:0, overflow:"hidden" }}>
         <div style={{ overflowX:"auto" }}>
           <table style={{ borderCollapse:"collapse", fontSize:12, direction:"rtl", width:"max-content", minWidth:"100%" }}>
             <thead>
-              <tr style={{ background:"#f8fafc", borderBottom:"1px solid #e2e8f0" }}>
-                {cols.map(({label,w,fkey}) => (
-                  <th key={label} style={{ padding:"9px 10px", textAlign:"right", color: (fkey && filters[fkey]) ? "#2563eb" : "#64748b", fontWeight:700, fontSize:11, whiteSpace:"nowrap", width:w, minWidth:w, borderLeft:"1px solid #f1f5f9" }}>
-                    {label}{fkey && filters[fkey] ? " ▲" : ""}
-                  </th>
-                ))}
-              </tr>
-              <tr style={{ background:"#f1f8ff", borderBottom:"2px solid #e2e8f0" }}>
-                {cols.map(({label,w,fkey}) => (
-                  <th key={label} style={{ padding:"4px 6px", width:w, minWidth:w, borderLeft:"1px solid #f1f5f9" }}>
-                    {fkey
-                      ? <input value={filters[fkey]||""} onChange={e=>setFilter(fkey,e.target.value)}
-                          placeholder="סינון..." style={filterInputStyle} />
-                      : null}
-                  </th>
-                ))}
+              <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                {cols.map(({label,w,fkey}) => {
+                  const active = fkey && isFiltered(fkey);
+                  return (
+                    <th key={label} style={{ padding:"8px 8px 8px 4px", textAlign:"right", fontWeight:700, fontSize:11,
+                      whiteSpace:"nowrap", width:w, minWidth:w, borderLeft:"1px solid #f1f5f9",
+                      color: active ? "#2563eb" : "#64748b",
+                      background: active ? "#eff6ff" : "#f8fafc" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
+                        <span>{label}</span>
+                        {fkey && (
+                          <button onClick={e=>openDropdown(fkey,e)}
+                            title="סינון"
+                            style={{ background:"none", border:"none", cursor:"pointer", padding:"1px 3px", borderRadius:3,
+                              color: active ? "#2563eb" : "#94a3b8", fontSize:10, lineHeight:1,
+                              background: active ? "#dbeafe" : "transparent" }}>
+                            {active ? "▼" : "▾"}
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -3885,14 +3990,11 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
                   <tr key={p.id} style={{ borderBottom:"1px solid #f1f5f9", background:i%2===0?"#fff":"#fafbfd" }}>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"projectNumber",d.projectNumber)}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9", fontWeight:600 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                        <span onClick={() => onNavigate && onNavigate(p)}
-                          style={{ fontWeight:600, fontSize:13, color:"#2563eb", cursor:"pointer", flex:1, textAlign:"right", textDecoration:"underline", textDecorationStyle:"dotted" }}
-                          onMouseOver={e=>e.target.style.color="#1d4ed8"}
-                          onMouseOut={e=>e.target.style.color="#2563eb"}>
-                          {p.name}
-                        </span>
-                      </div>
+                      <span onClick={() => onNavigate && onNavigate(p)}
+                        style={{ fontWeight:600, fontSize:13, color:"#2563eb", cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted" }}
+                        onMouseOver={e=>e.target.style.color="#1d4ed8"} onMouseOut={e=>e.target.style.color="#2563eb"}>
+                        {p.name}
+                      </span>
                     </td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9", color:"#374151" }}>{company?.name||"—"}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"address",o.address)}</td>
@@ -3900,8 +4002,8 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"planningManager",d.planningManager)}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9" }}>{inp(p.id,"executionManager",d.executionManager)}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #f1f5f9", textAlign:"right", fontWeight:600,
-                      color: utilPct === null ? "#94a3b8" : utilPct < 10 ? "#15803d" : utilPct < 12 ? "#c2410c" : "#dc2626" }}>
-                      {utilPct === null ? "—" : utilPct.toFixed(2) + "%"}
+                      color: utilPct===null?"#94a3b8":utilPct<10?"#15803d":utilPct<12?"#c2410c":"#dc2626" }}>
+                      {utilPct===null ? "—" : utilPct.toFixed(2)+"%"}
                     </td>
                     <td style={{ padding:"4px 6px", borderLeft:"1px solid #f1f5f9" }}>
                       <select value={p.status||""} onChange={e=>upd(p.id,"status",e.target.value)}
@@ -4083,7 +4185,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
   // Zone C: הוחזר ליועץ לתיקון
   // Zone 2: ממתין להעברה לחברה העירונית
   // Zone 3: ממתין לאישור החברה העירונית
-  const zoneA = [], zoneB = [], zoneC = [], zoneUM = [], zoneSend = [], zone2 = [], zone3 = [];
+  const zoneA = [], zoneB = [], zoneC = [], zoneUM = [], zoneSend = [], zone2 = [], zone3 = [], zoneIncSend = [];
 
   projects.forEach(proj => {
     // ── Consultant quotes ──
@@ -4114,11 +4216,17 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     const consultants = (allData[proj.id]?.consultants) || [];
     consultants.forEach(con => {
       (con.increases || []).forEach(x => {
+        if (x.approvedIncrease) return;
         const base = { projId: proj.id, projName: proj.name, fieldName: con.role || con.name,
           label: con.name, value: x.amount, payType:"סכום קבוע", type:"increase", tab:"consultants",
           consultantId: con.id, increaseId: x.id, fieldId: null, tooltip: x.reason,
           createdAt: x.createdAt || x.id };
-        if (x.approvedIncrease) return;
+        if (!x.sentToManager)
+          zoneIncSend.push({ ...base, key:`inca-${proj.id}-${con.id}-${x.id}` });
+        else if (!x.sentToMunicipality)
+          zoneUM.push({ ...base, key:`inc2-${proj.id}-${con.id}-${x.id}` });
+        else
+          zone3.push({ ...base, key:`inc3-${proj.id}-${con.id}-${x.id}` });
       });
     });
 
@@ -4243,7 +4351,8 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
   const COLS = [["סוג",80],["פרויקט",200],["תחום",130],["יועץ",140],["פרט",130],["סכום",110],["תאריך",100]];
 
   const zones = [
-    { title:"ממתין להמלצה על יועצים / אישור מנהל הגדלות", items:zoneA,  color:"#374151", bg:"#fffbeb", border:"#fde68a", icon:"⏳", emptyText:"אין פריטים ממתינים" },
+    { title:"ממתין להמלצה על יועצים", items:zoneA,  color:"#374151", bg:"#fffbeb", border:"#fde68a", icon:"⏳", emptyText:"אין פריטים ממתינים" },
+    { title:"ממתין להעברה לאישור מנהל", items:zoneIncSend, color:"#b45309", bg:"#fff7ed", border:"#fcd34d", icon:"📨", emptyText:"אין הגדלות הממתינות להעברה למנהל" },
     { title:"ממתין לאישור מנהל פרויקט",                    items:zoneB,  color:"#0891b2", bg:"#ecfeff", border:"#a5f3fc", icon:"👤", emptyText:"אין חשבונות הממתינים לאישור מנהל פרויקט", groupByManager:true },
     { title:"ממתין לאישור מנהל יחידה",                     items:zoneUM, color:"#7c3aed", bg:"#f5f3ff", border:"#c4b5fd", icon:"👔", emptyText:"אין חשבונות הממתינים לאישור מנהל יחידה" },
     { title:"הוחזר ליועץ לתיקון",                           items:zoneC,  color:"#dc2626", bg:"#fef2f2", border:"#fecaca", icon:"↩️", emptyText:"אין חשבונות שהוחזרו ליועץ" },
@@ -4394,8 +4503,8 @@ function EditableYear({ year, onChange }) {
 
 // ── Tab: פתיחת פרויקט ────────────────────────────────────────────────────────
 function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows }) {
-  const upd = (k, v) => setData({ ...(data||{}), [k]: v });
-  const updBudget = (k, v) => setBudgetState({ ...(budgetState||{}), [k]: v });
+  const upd = (k, v) => setData(prev => ({ ...(prev||{}), [k]: v }));
+  const updBudget = (k, v) => setBudgetState(prev => ({ ...(prev||{}), [k]: v }));
 
   const contractorEst = Number(String(data?.contractorEst||"").replace(/,/g,""));
   const devPct = Number((statsRows||[]).find(r=>r.field==="פיתוח")?.pct || 0);
@@ -4960,11 +5069,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
       const projData = prev[projId] || makeProjectData();
       const currentRows = projData[tabKey] || [];
       let newRows = typeof newRowsOrFn === "function" ? newRowsOrFn(currentRows) : newRowsOrFn;
-      // Clean invalid invoices - remove rows with non-positive amount AND no invoiceNum AND not brand new
-      if (tabKey === "accounts") {
-        const now = Date.now();
-        newRows = newRows.filter(r => Number(r.amount) > 0 || r.invoiceNum || (now - (r.createdAt||0)) < 60000);
-      }
       // Clean increases with no amount
       if (tabKey === "consultants") {
         newRows = newRows.map(con => ({
@@ -5013,7 +5117,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
   const sc = s => statusColor(s);
 
   return (
-    <div dir="rtl" lang="he-IL" style={{ minHeight:"100vh", background:"#f1f5f9", fontFamily:"'Heebo',sans-serif", color:"#1e293b", display:"flex" }}>
+    <div dir="rtl" lang="he-IL" style={{ height:"100vh", background:"#f1f5f9", fontFamily:"'Heebo',sans-serif", color:"#1e293b", display:"flex", overflow:"hidden" }}>
       <style>{css}</style>
 
       {/* ── Sidebar ── */}
@@ -5272,6 +5376,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 👁 מצב צפייה בלבד — אין הרשאת עריכה
               </div>
             )}
+            {/* Sticky header + tabs */}
+            <div style={{ position:"sticky", top:0, zIndex:100, background:"#fff" }}>
             {/* Header bar */}
             {(() => {
               const projCompanyId = allData[selectedProj.id]?.companyId || "";
@@ -5355,14 +5461,23 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 </button>
               ))}
             </div>
+            </div>{/* end sticky wrapper */}
 
             {/* Tab content */}
             <div key={`${selectedProj.id}-${activeTab}`} className="fade" style={{ padding:"26px 30px", flex:1 }}>
               {activeTab === "opening"     && <OpeningTab
                 data={allData[selectedProj.id]?.openingData||{}}
-                setData={d => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), openingData: d } }))}
+                setData={d => setAllData(prev => {
+                  const cur = prev[selectedProj.id]?.openingData || {};
+                  const newD = typeof d === "function" ? d(cur) : d;
+                  return { ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), openingData: newD } };
+                })}
                 budgetState={allData[selectedProj.id]?.budgetState||{}}
-                setBudgetState={bs => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), budgetState: bs } }))}
+                setBudgetState={bs => setAllData(prev => {
+                  const cur = prev[selectedProj.id]?.budgetState || {};
+                  const newBs = typeof bs === "function" ? bs(cur) : bs;
+                  return { ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), budgetState: newBs } };
+                })}
                 statsRows={statsRows}
               />}
               {activeTab === "quotes"      && <QuotesTab      rows={getData(selectedProj.id,"quotes")}      setRows={makeTabSetter(selectedProj.id,"quotes")} highlightFieldId={highlightFieldId} suppliers={suppliers} budgetState={allData[selectedProj.id]?.budgetState||{}} openingData={allData[selectedProj.id]?.openingData||{}} statsRows={statsRows} />}
