@@ -132,39 +132,39 @@
           <style>{"@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800;900&display=swap');"}</style>
           <div style={{ background:"#fff", borderRadius:18, padding:"40px 44px", width:520, boxShadow:"0 8px 40px #0001" }}>
             <div style={{ display:"flex", justifyContent:"center", marginBottom:28 }}>
-              <LogoBlock size="login" />
+              <img src="../CostPilot logo with yellow hard hat.png" style={{ height:59, objectFit:"contain" }} alt="CostPilot" />
             </div>
 
             {!showReset ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              <form method="post" onSubmit={e=>{e.preventDefault();handleLogin();}} style={{ display:"flex", flexDirection:"column", gap:14 }}>
                 <div>
-                  <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>כתובת מייל</label>
-                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                  <label htmlFor="username" style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>כתובת מייל</label>
+                  <input id="username" name="username" type="email" autoComplete="username" required
+                    value={email} onChange={e=>setEmail(e.target.value)}
                     placeholder="name@company.com" dir="ltr"
                     style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
                     onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
                 </div>
                 <div>
-                  <label style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>סיסמה</label>
-                  <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                  <label htmlFor="password" style={{ fontSize:12, fontWeight:600, color:"#64748b", display:"block", marginBottom:5 }}>סיסמה</label>
+                  <input id="password" name="password" type="password" autoComplete="current-password" required
+                    value={password} onChange={e=>setPassword(e.target.value)}
                     placeholder="••••••••" dir="ltr"
                     style={{ width:"100%", padding:"10px 13px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
                     onFocus={e=>e.target.style.borderColor="#3b82f6"} onBlur={e=>e.target.style.borderColor="#e2e8f0"} />
                 </div>
                 {error && <div style={{ color:"#ef4444", fontSize:13, textAlign:"center" }}>{error}</div>}
-                <button onClick={handleLogin} disabled={loading}
+                <button type="submit" disabled={loading}
                   style={{ background:"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#fff", border:"none", borderRadius:9, padding:"11px", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif", marginTop:4, opacity:loading?0.7:1 }}>
                   {loading ? "מתחבר..." : "כניסה"}
                 </button>
                 <div style={{ textAlign:"center" }}>
-                  <button onClick={() => { setShowReset(true); setResetEmail(email); setError(""); }}
+                  <button type="button" onClick={() => { setShowReset(true); setResetEmail(email); setError(""); }}
                     style={{ background:"none", border:"none", color:"#3b82f6", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
                     שכחתי סיסמה
                   </button>
                 </div>
-              </div>
+              </form>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
                 {resetSent ? (
@@ -348,19 +348,20 @@ function LogoBlock({ size }) {
   const subRef   = React.useRef(null);
 
   React.useEffect(() => {
+    const baseFontSize = big ? 28 : 17;
     const fit = () => {
       const title = titleRef.current;
       const sub   = subRef.current;
       if (!title || !sub) return;
-      // reset both transforms so we measure natural sizes
+      // reset to base size for accurate measurement
+      title.style.fontSize = baseFontSize + "px";
       title.style.transform = "";
       sub.style.transform   = "";
       const titleW = title.getBoundingClientRect().width;
       const subW   = sub.getBoundingClientRect().width;
       if (titleW > 0 && subW > 0) {
-        // stretch CostPilot from its right edge to match subtitle width
-        title.style.transformOrigin = "right center";
-        title.style.transform = "scaleX(" + (subW / titleW) + ")";
+        // grow font-size so CostPilot naturally fills subtitle width
+        title.style.fontSize = (baseFontSize * subW / titleW) + "px";
       }
     };
     const raf = requestAnimationFrame(() => requestAnimationFrame(fit));
@@ -383,9 +384,9 @@ function LogoBlock({ size }) {
         backgroundRepeat:   "no-repeat",
         flexShrink: 0
       }} />
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end" }}>
-        <div ref={titleRef} style={{ fontWeight:900, color:"#1e293b", lineHeight:1, whiteSpace:"nowrap", fontSize: big?28:17 }}>CostPilot</div>
-        <div ref={subRef}   style={{ fontSize: big?16:10, fontWeight:700, color:"#64748b", marginTop:4, whiteSpace:"nowrap" }}>ניהול תקציבי פרויקט</div>
+      <div style={{ display:"flex", flexDirection:"column", gap: big?4:2, alignItems:"flex-end" }}>
+        <span ref={titleRef} style={{ display:"inline-block", fontWeight:900, color:"#1e293b", lineHeight:1, whiteSpace:"nowrap", fontSize: big?28:17 }}>CostPilot</span>
+        <span ref={subRef}   style={{ display:"inline-block", fontSize: big?16:10, fontWeight:700, color:"#64748b", whiteSpace:"nowrap", lineHeight:1 }}>ניהול תקציבי פרויקט</span>
       </div>
     </div>
   );
@@ -5495,9 +5496,10 @@ function AppInner({ currentUser, userRole, setUserRole }) {
 
       {/* ── Sidebar ── */}
       <aside style={{ width:290, background:"#fff", borderLeft:"1px solid #e2e8f0", display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh", overflow:"hidden", flexShrink:0 }}>
+
         {/* Logo */}
-        <div style={{ padding:"14px 16px 12px", borderBottom:"1px solid #e2e8f0" }}>
-          <LogoBlock size="sidebar" />
+        <div style={{ padding:"14px 16px", borderBottom:"1px solid #e2e8f0", display:"flex", alignItems:"center", justifyContent:"flex-start" }}>
+          <img src="../costpilot_logo_half_helmet_cropped.png" style={{ height:36, objectFit:"contain" }} alt="CostPilot" />
         </div>
 
         {/* Global nav items */}
