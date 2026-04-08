@@ -2858,6 +2858,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
   const contractorEst = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"").replace(/[^\d.]/g,"")) || Number(bs.contractorEst || 0);
   const tenderDocs    = Number(bs.tenderDocs    || 0);
   const finalAccount  = Number(bs.finalAccount  || 0);
+  const finalBoqVal   = Number(String((contractorRows||[]).find(r=>r.key==="__meta__")?.finalBoq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
   const approvalActual= Number(bs.approvalActual|| 0);
   const setupOffset   = Number(bs.setupOffset   || 0);
   const extraItems    = bs.extraItems || [];
@@ -2959,7 +2960,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
                 {finalBoqVal > 0
                   ? <div style={{ padding:"4px 8px", fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right" }}>{finalBoqVal.toLocaleString("he-IL")}</div>
-                  : <input type="text" inputMode="numeric" value={bs.finalAccount&&!isNaN(Number(String(bs.finalAccount).replace(/,/g,"")))?Number(String(bs.finalAccount).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("finalAccount",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                  : <NegInput value={bs.finalAccount||""} onCommit={v=>upd("finalAccount",v)} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
                 }
               </td>
               <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", overflow:"hidden", textOverflow:"ellipsis" }}>תקציב שהתקבל</td>
@@ -3034,7 +3035,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
         {contractorEst > 0 && (() => {
           const boqMeta = (tenderRows||[]).find(r=>r.key==="__meta__");
           const boqVal  = Number(String(boqMeta?.boq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
-          const utilBase = boqVal > 0 ? boqVal : contractorEst;
+          const utilBase = finalBoqVal > 0 ? finalBoqVal : boqVal > 0 ? boqVal : contractorEst;
           const utilPct = consultantsTotal / utilBase * 100;
           const bg     = utilPct < 10 ? "#f0fdf4" : utilPct < 12 ? "#fff7ed" : "#fef2f2";
           const border = utilPct < 10 ? "#86efac" : utilPct < 12 ? "#fdba74" : "#fca5a5";
@@ -3735,9 +3736,9 @@ function ContractorTab({ rows, setRows, quotesRows, tenderRows, budgetState, sta
         <div style={{ padding:"10px 20px 0", display:"flex", alignItems:"center", gap:16, direction:"rtl" }}>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>חשבון קבלן סופי:</label>
-            <input value={metaC.finalBoq||""} onChange={e=>updMetaC({finalBoq:e.target.value})}
+            <NegInput value={metaC.finalBoq||""} onCommit={v=>updMetaC({finalBoq:v})}
               placeholder="הזן ערך..."
-              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:200 }} />
+              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:200, textAlign:"right" }} />
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>תאריך:</label>
@@ -4696,8 +4697,13 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
       const company = companies.find(c => String(c.id) === String(d.companyId));
       const cEst = Number(String(o.contractorEst||"").replace(/,/g,"")) || Number(d.budgetState?.contractorEst||0);
       const _allRowsX = buildBudgetAllRows({ quotesRows: d.quotes||[], consultantsRows: d.consultants||[], budgetState: { ...(d.budgetState||{}), contractorEst: cEst }, statsRows, accountsRows: d.accounts||[], planOnlyMap:{}, openingData: o });
-      const consultantsTotal = cEst > 0 ? _allRowsX.reduce((s,r) => s + (r.payType==="אחוזים" ? r.computedFee : r.value) + r.increases, 0) : 0;
-      const utilPct = cEst > 0 ? consultantsTotal / cEst * 100 : null;
+      const consultantsTotal = _allRowsX.reduce((s,r) => s + (r.payType==="אחוזים" ? r.computedFee : r.value) + r.increases, 0);
+      const _finalMetaX = (d.contractor||[]).find(r=>r.key==="__meta__");
+      const _finalBoqX  = Number(String(_finalMetaX?.finalBoq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+      const _boqMetaX = (d.tender||[]).find(r=>r.key==="__meta__");
+      const _boqValX  = Number(String(_boqMetaX?.boq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+      const _utilBaseX = _finalBoqX > 0 ? _finalBoqX : _boqValX > 0 ? _boqValX : cEst;
+      const utilPct = _utilBaseX > 0 ? consultantsTotal / _utilBaseX * 100 : null;
       const _bs = d.budgetState || {};
       const _feePaid  = [...(_bs.feeRows||[]),...(_bs.extraFeeRows||[])].reduce((s,r)=>s+Number(r.paid||0),0);
       const _conPaid  = [{ paid:_bs.contractorPaid||"" },...(_bs.extraContractorRows||[])].reduce((s,r)=>s+Number(r.paid||0),0);
@@ -4808,8 +4814,13 @@ ${rows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f8fafc"}">${row.ce
                 const company = companies.find(c => String(c.id) === String(d.companyId));
                 const cEst = Number(String(o.contractorEst||"").replace(/,/g,"")) || Number(d.budgetState?.contractorEst||0);
                 const _allRowsG = buildBudgetAllRows({ quotesRows: d.quotes||[], consultantsRows: d.consultants||[], budgetState: { ...(d.budgetState||{}), contractorEst: cEst }, statsRows, accountsRows: d.accounts||[], planOnlyMap:{}, openingData: o });
-                const consultantsTotal = cEst > 0 ? _allRowsG.reduce((s,r) => s + (r.payType==="אחוזים" ? r.computedFee : r.value) + r.increases, 0) : 0;
-                const utilPct = cEst > 0 ? consultantsTotal / cEst * 100 : null;
+                const consultantsTotal = _allRowsG.reduce((s,r) => s + (r.payType==="אחוזים" ? r.computedFee : r.value) + r.increases, 0);
+                const _finalMetaG = (d.contractor||[]).find(r=>r.key==="__meta__");
+                const _finalBoqG  = Number(String(_finalMetaG?.finalBoq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+                const _boqMetaG = (d.tender||[]).find(r=>r.key==="__meta__");
+                const _boqValG  = Number(String(_boqMetaG?.boq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+                const _utilBaseG = _finalBoqG > 0 ? _finalBoqG : _boqValG > 0 ? _boqValG : cEst;
+                const utilPct = _utilBaseG > 0 ? consultantsTotal / _utilBaseG * 100 : null;
                 const _bs = d.budgetState || {};
                 const _feePaid  = [...(_bs.feeRows||[]),...(_bs.extraFeeRows||[])].reduce((s,r)=>s+Number(r.paid||0),0);
                 const _conPaid  = [{ paid:_bs.contractorPaid||"" },...(_bs.extraContractorRows||[])].reduce((s,r)=>s+Number(r.paid||0),0);
