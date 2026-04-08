@@ -639,7 +639,7 @@ const PAYMENT_TYPES = ["אחוזים", "סכום קבוע", "שעתי"];
 function FieldSearchInput({ availableFields, onSelect, onCancel, noLabel }) {
   const [fieldSearch, setFieldSearch] = useState("");
   const filtered = availableFields.filter(f => f.toLowerCase().includes(fieldSearch.toLowerCase()));
-  const showList = fieldSearch.length > 0 && filtered.length > 0 && !filtered.some(f => f === fieldSearch);
+  const showList = fieldSearch.length > 0 && filtered.length > 0;
   return (
     <Card style={{ border:"2px solid #3b82f6", padding:16, display:"flex", gap:10, alignItems:"flex-start" }}>
       <div style={{ flex:1, position:"relative" }}>
@@ -989,7 +989,10 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                     )}
                     {c.payType!=="אחוזים" && (
                       <button onClick={()=>toggleSubs(c.id)} title="פירוט סעיפים"
-                        style={{ background: expandedSubs[c.id]?"#e0f2fe":"none", border:"1px solid #cbd5e1", borderRadius:5, cursor:"pointer", fontSize:10, padding:"2px 5px", color:"#475569", flexShrink:0 }}>
+                        style={{ background: expandedSubs[c.id]?"#e0f2fe": (c.subItems&&c.subItems.length>0)?"#fff7ed":"none",
+                          border: `1px solid ${(c.subItems&&c.subItems.length>0)?"#f97316":"#cbd5e1"}`,
+                          borderRadius:5, cursor:"pointer", fontSize:10, padding:"2px 5px",
+                          color: (c.subItems&&c.subItems.length>0)?"#ea580c":"#475569", flexShrink:0 }}>
                         {expandedSubs[c.id]?"▼":"▶"}
                       </button>
                     )}
@@ -1183,43 +1186,73 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
   })();
 
   const calcSupplement = (newEst) => {
-    if (!newEst) return 0;
     // הערך הישן = הערך האחרון בהיסטוריה, או הבסיס המקורי מפתיחת הפרויקט
     const getOldBase = (histKey, fallback) => {
       const hist = (consultant[histKey]||[]).length > 0 ? consultant[histKey] : (openingData?.[histKey] || []);
       return hist.length > 0 ? Number(hist[hist.length-1].amount) : fallback;
     };
     if (isArchitect && archCalc) {
-      const isManual = archCalc.manualBase;
-      const oldBase = isManual
-        ? getOldBase("archBaseHistory", archCalc.archBase)
-        : getOldBase("contractorEstHistory", Number(String(openingData?.contractorEst||"").replace(/,/g,"")));
+      if (!newEst) return 0;
+      const oldBase = getOldBase("archBaseHistory", archCalc.archBase);
       if (!oldBase) return 0;
-      const newArchBase = isManual ? newEst : newEst * (1 - archCalc.devPct / 100);
-      const oldArchBase = isManual ? oldBase : oldBase * (1 - archCalc.devPct / 100);
-      return (newArchBase - oldArchBase) * archCalc.archPct / 100;
+      return (newEst - oldBase) * archCalc.archPct / 100;
     }
+    if (isOtherPct && otherCalc && !otherCalc.noProfPct) {
+      const newSect = Number(String(newSectAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+      if (!newSect) return 0;
+      const oldSect = getOldBase("sectionEstHistory", Math.round(otherCalc.profBase));
+      if (!oldSect) return 0;
+      return (newSect - oldSect) * otherCalc.conPct / 100;
+    }
+    if (!newEst) return 0;
     const oldEst = getOldBase("contractorEstHistory", Number(String(openingData?.contractorEst||"").replace(/,/g,"")));
     if (!oldEst) return 0;
     const diff = newEst - oldEst;
     if (!diff) return 0;
     if (isPM && pmCalc) return diff * pmCalc.pmPct / 100;
-    if (isOtherPct && otherCalc && !otherCalc.noProfPct) return diff * otherCalc.profPct / 100 * otherCalc.conPct / 100;
     return 0;
   };
 
   const saveNewEst = () => {
     const newEst = Number(String(newEstAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+
+    // ─── isOtherPct: שמור אומדן פרק ישיר ב-sectionEstHistory ───
+    if (isOtherPct && otherCalc && !otherCalc.noProfPct) {
+      const newSect = Number(String(newSectAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+      if (!newSect || !estDate) return;
+      const histKey = "sectionEstHistory";
+      const existingHist = (consultant[histKey]||[]).length > 0 ? consultant[histKey] : (openingData?.[histKey] || []);
+      const origBase = Math.round(otherCalc.profBase);
+      const oldBase = existingHist.length > 0 ? Number(existingHist[existingHist.length-1].amount) : origBase;
+      const history = [...existingHist];
+      if (history.length === 0 && origBase) history.push({ amount: origBase, effectiveDate: openingData?.contractorEstDate || "—", note:"ראשוני" });
+      history.push({ amount: newSect, effectiveDate: estDate, note:"" });
+      const currentFee = otherCalc.conFee || 0;
+      const contractFee = consultant.contractFee || (currentFee > 0 ? currentFee : undefined);
+      const supplement = calcSupplement(newEst);
+      const reasonLabel = `${oldBase.toLocaleString("he-IL")} ← ${newSect.toLocaleString("he-IL")} ₪`;
+      const newIncrease = supplement !== 0 ? {
+        reason: `עדכון אומדן פרק: ${reasonLabel}`,
+        amount: supplement.toFixed(2), date: estDate, planOnly: false,
+        id: Date.now(), createdAt: Date.now(),
+        sentToManager:false, sentToMunicipality:false, approvedIncrease:false,
+      } : null;
+      const newIncreases = newIncrease ? [...increases, newIncrease] : increases;
+      if (newIncrease) setIncreases(newIncreases);
+      onSave({ ...consultant, increases: newIncreases, contacts, exportNotes, [histKey]: history, ...(contractFee ? { contractFee } : {}) });
+      setShowEstForm(false); setNewEstAmount(""); setNewSectAmount("");
+      return;
+    }
+
     if (!newEst || !estDate) return;
 
     // ─── ערכי הבסיס בפתיחת פרויקט לא משתנים לעולם ───
     // ההיסטוריה נשמרת ברמת היועץ (לא ב-openingData)
-    const isManualBase = isArchitect && archCalc?.manualBase;
-    const histKey = isManualBase ? "archBaseHistory" : "contractorEstHistory";
+    const histKey = isArchitect ? "archBaseHistory" : "contractorEstHistory";
     const existingHist = (consultant[histKey]||[]).length > 0 ? consultant[histKey] : (openingData?.[histKey] || []);
 
     // ערך ראשוני להיסטוריה (מפתיחת הפרויקט — לא משתנה)
-    const origBase = isManualBase
+    const origBase = isArchitect
       ? archCalc.archBase
       : Number(String(openingData?.contractorEst||"").replace(/,/g,""));
 
@@ -1239,12 +1272,12 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
     const contractFee = consultant.contractFee || (currentFee > 0 ? currentFee : undefined);
 
     const supplement = calcSupplement(newEst);
-    const reasonLabel = isManualBase
-      ? `${oldBase.toLocaleString("he-IL")} ← ${newEst.toLocaleString("he-IL")} ₪ (ערך מבנה)`
+    const reasonLabel = isOtherPct && otherCalc?.profPct
+      ? `${Math.round(oldBase * otherCalc.profPct / 100).toLocaleString("he-IL")} ← ${Math.round(newEst * otherCalc.profPct / 100).toLocaleString("he-IL")} ₪`
       : `${oldBase.toLocaleString("he-IL")} ← ${newEst.toLocaleString("he-IL")} ₪`;
 
     const newIncrease = supplement !== 0 ? {
-      reason: `עדכון אומדן: ${reasonLabel}`,
+      reason: `עדכון אומדן ${isOtherPct ? "פרק" : "קבלני"}: ${reasonLabel}`,
       amount: supplement.toFixed(2), date: estDate, planOnly: false,
       id: Date.now(), createdAt: Date.now(),
       sentToManager:false, sentToMunicipality:false, approvedIncrease:false,
@@ -1455,7 +1488,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
           {(isArchitect || isPM || isOtherPct) && (
             <div style={{ border:"1px solid #e2e8f0", borderRadius:10, padding:"12px 16px", background:"#f8fafc" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:1 }}>{isArchitect && archCalc?.manualBase ? "היסטוריית ערך מבנה לאדריכל" : "היסטוריית אומדן קבלני"}</span>
+                <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:1 }}>{isOtherPct && otherCalc && !otherCalc.noProfPct ? "היסטוריית אומדן פרק" : "היסטוריית אומדן קבלני"}</span>
                 {setOpeningData && !showEstForm && (
                   <button onClick={() => { setNewEstAmount(""); setNewSectAmount(""); setEstDate(new Date().toISOString().split("T")[0]); setShowEstForm(true); }}
                     style={{ fontSize:11, fontWeight:700, color:"#fff", background:"#475569", border:"none", borderRadius:6, padding:"3px 10px", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
@@ -1464,11 +1497,13 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                 )}
               </div>
               {(() => {
-                const useArchBase = isArchitect && archCalc?.manualBase;
-                const histKey = useArchBase ? "archBaseHistory" : "contractorEstHistory";
-                const curVal = useArchBase
+                const useSection = isOtherPct && otherCalc && !otherCalc.noProfPct;
+                const histKey = isArchitect ? "archBaseHistory" : useSection ? "sectionEstHistory" : "contractorEstHistory";
+                const curVal = isArchitect
                   ? archCalc.archBase
-                  : Number(String(openingData?.contractorEst||"0").replace(/,/g,""));
+                  : useSection
+                    ? Math.round(otherCalc.profBase)
+                    : Number(String(openingData?.contractorEst||"0").replace(/,/g,""));
                 const hist = (consultant[histKey]||[]).length > 0 ? consultant[histKey] : (openingData?.[histKey] || []);
                 const fmtDate = d => {
                   if (!d || d === "—") return openingData?.contractorEstDate
@@ -1488,11 +1523,6 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                           style={{ background:"none", border:"none", color:"#ef4444", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1, flexShrink:0 }}>✕</button>
                         <span>{fmtDate(h.effectiveDate)}</span>
                         <span style={{ fontWeight:700 }}>{Number(h.amount).toLocaleString("he-IL")} ₪</span>
-                        {isOtherPct && otherCalc?.profPct > 0 && (
-                          <span style={{ color:"#2563eb", fontWeight:700 }}>
-                            {`| פרק: ${Math.round(Number(h.amount) * otherCalc.profPct / 100).toLocaleString("he-IL")} ₪`}
-                          </span>
-                        )}
                         {h.note && <span>({h.note})</span>}
                         {i===hist.length-1 && <Badge color="#16a34a">נוכחי</Badge>}
                       </div>
@@ -1500,13 +1530,14 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                   </div>
                 ) : (
                   <div style={{ fontSize:12, color:"#94a3b8", marginBottom: showEstForm?10:0 }}>
-                    {useArchBase ? "ערך מבנה" : "אומדן"} נוכחי: <strong style={{color:"#1e293b"}}>{curVal.toLocaleString("he-IL")} ₪</strong>
+                    אומדן נוכחי: <strong style={{color:"#1e293b"}}>{curVal.toLocaleString("he-IL")} ₪</strong>
                   </div>
                 );
               })()}
               {showEstForm && (() => {
                 const newEst = Number(String(newEstAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
-                const supp = newEst ? calcSupplement(newEst) : 0;
+                const newSect = Number(String(newSectAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+                const supp = (isOtherPct ? newSect : newEst) ? calcSupplement(newEst) : 0;
                 const showSect = isOtherPct && otherCalc && !otherCalc.noProfPct;
                 const profPct = otherCalc?.profPct || 0;
                 const handleContractorChange = e => {
@@ -1528,11 +1559,14 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                 const cols = showSect ? "1fr 1fr 1fr" : "1fr 1fr";
                 return (
                   <div style={{ background:"#eff6ff", borderRadius:8, padding:"10px 12px", border:"1.5px dashed #93c5fd" }}>
-                    <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, marginBottom:8 }}>
+                    <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, marginBottom:8, alignItems:"end" }}>
                       <div>
-                        <label style={{ fontSize:11, fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>
+                        <label style={{ fontSize:11, fontWeight:700, color:"#64748b", display:"block", marginBottom:1 }}>
                           {isArchitect && archCalc?.manualBase ? "ערך מבנה חדש לאדריכל (₪) *" : "אומדן קבלני חדש (₪) *"}
                         </label>
+                        {isArchitect && (
+                          <div style={{ fontSize:10, color:"#64748b", marginBottom:3 }}>הערך לא יכלול פרקי פיתוח</div>
+                        )}
                         <input value={newEstAmount} onChange={handleContractorChange}
                           placeholder="0" autoFocus={!showSect}
                           style={{ width:"100%", padding:"5px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
@@ -1788,7 +1822,7 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, direction:"rtl" }}>
             <thead>
               <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
-                {["תחום","שם משרד / יועץ","שכ״ט","הגדלות מאושרות","שם איש קשר","טלפון","נייד","מייל"].map(h => (
+                {["תחום","שם משרד / יועץ","שכ״ט","הגדלות מאושרות","הגדלות לאישור","שם איש קשר","טלפון","נייד","מייל"].map(h => (
                   <th key={h} style={{ padding:"9px 12px", textAlign:"right", fontWeight:700, fontSize:11, color:"#64748b", whiteSpace:"nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -1801,6 +1835,7 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
                   const enr = enrich(r);
                   const increases = r.increases || [];
                   const totalInc  = increases.filter(x => x.approvedIncrease).reduce((s,x) => s+Number(x.amount||0), 0);
+                  const pendingInc = increases.filter(x => !x.approvedIncrease).reduce((s,x) => s+Number(x.amount||0), 0);
                   const sm = (suppliers||[]).find(s => s.name === r.name);
                   const smCt = sm?.contacts?.length > 0 ? sm.contacts[0] : null;
                   const ct = r.contacts?.length > 0
@@ -1822,7 +1857,16 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
                       </td>
                       <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
                         {totalInc !== 0
-                          ? <span style={{ fontWeight:600, color: totalInc < 0 ? "#dc2626" : "#d97706" }}>{totalInc < 0 ? "הפחתה " : "+"} {fmt(Math.abs(totalInc))}</span>
+                          ? totalInc < 0
+                            ? <span style={{ fontWeight:600, color:"#dc2626" }}>הפחתה {fmt(Math.abs(totalInc))}</span>
+                            : <span style={{ fontWeight:600, color:"#d97706", direction:"ltr", display:"inline-block" }}>+{fmt(totalInc)}</span>
+                          : dash}
+                      </td>
+                      <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
+                        {pendingInc !== 0
+                          ? pendingInc < 0
+                            ? <span style={{ fontWeight:600, color:"#dc2626" }}>הפחתה {fmt(Math.abs(pendingInc))}</span>
+                            : <span style={{ fontWeight:600, color:"#0891b2", direction:"ltr", display:"inline-block" }}>+{fmt(pendingInc)}</span>
                           : dash}
                       </td>
                       <td style={{ padding:"10px 12px", color:"#374151" }}>{ct.name||dash}</td>
@@ -2131,7 +2175,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
 
   const selField = (sel?.field||"").trim();
   const templateMilestones = (sel && companyId) ? (milestones?.[companyId]?.[selField] || []) : [];
-  const hasLocalMs = sel ? !!(localMilestones||{})[selField] : false;
+  const hasLocalMs = sel ? (((localMilestones||{})[selField]?.length || 0) > 0) : false;
   const fieldMilestones = hasLocalMs ? (localMilestones[selField]||[]) : templateMilestones;
   const selSubItems = sel?.subItems||[];
   const useSubItems = selSubItems.length > 0;
@@ -2141,7 +2185,13 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
     setEditingMs(true);
   };
   const saveMsLocal = () => {
-    setLocalMilestones({ ...(localMilestones||{}), [selField]: draftMs });
+    if (draftMs.length === 0) {
+      const updated = { ...(localMilestones||{}) };
+      delete updated[selField];
+      setLocalMilestones(updated);
+    } else {
+      setLocalMilestones({ ...(localMilestones||{}), [selField]: draftMs });
+    }
     setEditingMs(false);
   };
   const resetToTemplate = () => {
@@ -2436,6 +2486,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                         const validKeys = new Set([
                           ...fieldMilestones.map(m => "m-"+m.id),
                           ...(sel.increases||[]).map(x => "i-"+x.id),
+                          ...selSubItems.map(it => "s-"+it.id),
                         ]);
                         const byNum = {};
                         rows.filter(r => invMatchesField(r, sel?.field||"", sel?.name||"") && validKeys.has(r.rowKey)).forEach(inv => {
@@ -2768,7 +2819,7 @@ function BudgetNumInput({ value, onChange, placeholder="0", style={} }) {
   />;
 }
 
-function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetState, setBudgetState, statsRows, accountsTotalPaid, accountsRows, planOnlyMap, onNavigate, openingData, setOpeningData }) {
+function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetState, setBudgetState, statsRows, accountsTotalPaid, accountsRows, planOnlyMap, onNavigate, openingData, setOpeningData, tenderRows, contractorRows }) {
   const [budgetOpenConsultantId, setBudgetOpenConsultantId] = useState(null);
   // Find and enrich consultant for inline modal
   const budgetOpenConsultant = React.useMemo(() => {
@@ -2851,7 +2902,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
           <tbody>
             {/* אומדן עירוני / אישור ממונה עירוני */}
             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
-              <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>אומדן עירוני</td>
+              <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>אומדן עירוני ראשוני</td>
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
                 {(() => { const v = Number(String((openingData||{}).municipalEst||"").replace(/,/g,"").replace(/[^\d.]/g,"")); return <div style={{ textAlign:"right", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", color:v?"#1e293b":"#94a3b8" }}>{v?v.toLocaleString("en-US"):"לא הוזן"}</div>; })()}
               </td>
@@ -2865,7 +2916,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
             </tr>
             {/* אומדן קבלני / קיזוז דמי הקמה */}
             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
-              <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>אומדן קבלני</td>
+              <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>אומדן קבלני ראשוני</td>
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
                 {(() => { const v = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"").replace(/[^\d.]/g,"")); return <div style={{ textAlign:"right", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", color:v?"#1e293b":"#94a3b8" }}>{v?v.toLocaleString("en-US"):"לא הוזן"}</div>; })()}
               </td>
@@ -2878,10 +2929,17 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
               </td>
             </tr>
             {/* כתב כמויות / סה"כ אישור */}
+            {(() => {
+              const boqMeta2 = (tenderRows||[]).find(r=>r.key==="__meta__");
+              const boqVal2  = Number(String(boqMeta2?.boq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+              return (
             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
               <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>כתב כמויות / מכרז</td>
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
-                <input type="text" inputMode="numeric" value={bs.tenderDocs&&!isNaN(Number(String(bs.tenderDocs).replace(/,/g,"")))?Number(String(bs.tenderDocs).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("tenderDocs",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                {boqVal2 > 0
+                  ? <div style={{ padding:"4px 8px", fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right" }}>{boqVal2.toLocaleString("he-IL")}</div>
+                  : <input type="text" inputMode="numeric" value={bs.tenderDocs&&!isNaN(Number(String(bs.tenderDocs).replace(/,/g,"")))?Number(String(bs.tenderDocs).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("tenderDocs",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                }
               </td>
               <td style={{ padding:"8px 14px", fontWeight:700, color:"#1e293b", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap" }}>סה״כ אישור פרויקט</td>
               <td style={{ padding:"8px 14px", fontWeight:800, color:"#1e293b", textAlign:"right", borderLeft:"1px solid #e2e8f0" }}>₪{fmtN(approvalTotal)}</td>
@@ -2889,11 +2947,20 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                 <input value={bs.tenderDocsNotes||""} onChange={e=>upd("tenderDocsNotes",e.target.value)} placeholder="הערה..." style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
               </td>
             </tr>
+              );
+            })()}
             {/* חשבון קבלן סופי / תקציב שהתקבל */}
+            {(() => {
+              const finalMeta = (contractorRows||[]).find(r=>r.key==="__meta__");
+              const finalBoqVal = Number(String(finalMeta?.finalBoq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+              return (
             <tr style={{ borderBottom:"1px solid #f1f5f9" }}>
               <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>חשבון קבלן סופי</td>
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
-                <input type="text" inputMode="numeric" value={bs.finalAccount&&!isNaN(Number(String(bs.finalAccount).replace(/,/g,"")))?Number(String(bs.finalAccount).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("finalAccount",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                {finalBoqVal > 0
+                  ? <div style={{ padding:"4px 8px", fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right" }}>{finalBoqVal.toLocaleString("he-IL")}</div>
+                  : <input type="text" inputMode="numeric" value={bs.finalAccount&&!isNaN(Number(String(bs.finalAccount).replace(/,/g,"")))?Number(String(bs.finalAccount).replace(/,/g,"")).toLocaleString("en-US"):""} onChange={e=>upd("finalAccount",e.target.value.replace(/,/g,""))} placeholder="0" style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
+                }
               </td>
               <td style={{ padding:"8px 14px", color:"#374151", textAlign:"right", borderLeft:"1px solid #e2e8f0", overflow:"hidden", textOverflow:"ellipsis" }}>תקציב שהתקבל</td>
               <td style={{ padding:"5px 10px", borderLeft:"1px solid #e2e8f0" }}>
@@ -2904,6 +2971,8 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                 <input value={bs.finalAccountNotes||""} onChange={e=>upd("finalAccountNotes",e.target.value)} placeholder="הערה..." style={{ width:"100%", textAlign:"right", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 8px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
               </td>
             </tr>
+              );
+            })()}
             {extraItems.map(x => (
               <tr key={x.id} style={{ borderBottom:"1px solid #f1f5f9", background:"#fafbfd" }}>
                 <td colSpan={2} style={{ borderLeft:"1px solid #e2e8f0" }}></td>
@@ -2941,21 +3010,32 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
       </div>
       <div style={{ flex:1 }} />
       <div style={{ display:"flex", flexDirection:"row", gap:12 }}>
-        {receivedTotal > 0 && (() => {
-          const budgetPct = grandTotalPaidCalc / receivedTotal * 100;
-          const bg     = budgetPct < 75 ? "#f0fdf4" : budgetPct < 85 ? "#fffbeb" : budgetPct < 95 ? "#fff7ed" : "#fef2f2";
-          const border = budgetPct < 75 ? "#86efac" : budgetPct < 85 ? "#fde68a" : budgetPct < 95 ? "#fdba74" : "#fca5a5";
-          const clr    = budgetPct < 75 ? "#15803d" : budgetPct < 85 ? "#a16207" : budgetPct < 95 ? "#c2410c" : "#dc2626";
+        {(() => {
+          if (receivedTotal > 0) {
+            const budgetPct = grandTotalPaidCalc / receivedTotal * 100;
+            const bg     = budgetPct < 75 ? "#f0fdf4" : budgetPct < 85 ? "#fffbeb" : budgetPct < 95 ? "#fff7ed" : "#fef2f2";
+            const border = budgetPct < 75 ? "#86efac" : budgetPct < 85 ? "#fde68a" : budgetPct < 95 ? "#fdba74" : "#fca5a5";
+            const clr    = budgetPct < 75 ? "#15803d" : budgetPct < 85 ? "#a16207" : budgetPct < 95 ? "#c2410c" : "#dc2626";
+            return (
+              <div style={{ background:bg, border:"2px solid "+border, borderRadius:12, padding:"16px 20px", minWidth:190, display:"flex", flexDirection:"column", gap:8, direction:"rtl" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#64748b", whiteSpace:"nowrap" }}>ניצול תקציבי</div>
+                <div style={{ fontSize:18, fontWeight:800, color:clr, lineHeight:1 }}>{budgetPct.toFixed(2)}%</div>
+                <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{fmt(grandTotalPaidCalc)} / {fmt(receivedTotal)}</div>
+              </div>
+            );
+          }
           return (
-            <div style={{ background:bg, border:"2px solid "+border, borderRadius:12, padding:"16px 20px", minWidth:190, display:"flex", flexDirection:"column", gap:8, direction:"rtl" }}>
+            <div style={{ background:"#f8fafc", border:"2px solid #e2e8f0", borderRadius:12, padding:"16px 20px", minWidth:190, display:"flex", flexDirection:"column", gap:8, direction:"rtl" }}>
               <div style={{ fontSize:11, fontWeight:700, color:"#64748b", whiteSpace:"nowrap" }}>ניצול תקציבי</div>
-              <div style={{ fontSize:18, fontWeight:800, color:clr, lineHeight:1 }}>{budgetPct.toFixed(2)}%</div>
-              <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{fmt(grandTotalPaidCalc)} / {fmt(receivedTotal)}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:"#94a3b8", lineHeight:1.4 }}>טרם התקבל תקצוב לפרויקט</div>
             </div>
           );
         })()}
         {contractorEst > 0 && (() => {
-          const utilPct = consultantsTotal / contractorEst * 100;
+          const boqMeta = (tenderRows||[]).find(r=>r.key==="__meta__");
+          const boqVal  = Number(String(boqMeta?.boq||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+          const utilBase = boqVal > 0 ? boqVal : contractorEst;
+          const utilPct = consultantsTotal / utilBase * 100;
           const bg     = utilPct < 10 ? "#f0fdf4" : utilPct < 12 ? "#fff7ed" : "#fef2f2";
           const border = utilPct < 10 ? "#86efac" : utilPct < 12 ? "#fdba74" : "#fca5a5";
           const clr    = utilPct < 10 ? "#15803d" : utilPct < 12 ? "#c2410c" : "#dc2626";
@@ -2963,7 +3043,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
             <div style={{ background:bg, border:"2px solid "+border, borderRadius:12, padding:"16px 20px", minWidth:190, display:"flex", flexDirection:"column", gap:8, direction:"rtl" }}>
               <div style={{ fontSize:11, fontWeight:700, color:"#64748b", whiteSpace:"nowrap" }}>אחוז יועצים מאומדן קבלני</div>
               <div style={{ fontSize:18, fontWeight:800, color:clr, lineHeight:1 }}>{utilPct.toFixed(2)}%</div>
-              <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{fmt(consultantsTotal)} / {fmt(contractorEst)}</div>
+              <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{fmt(consultantsTotal)} / {fmt(utilBase)}</div>
             </div>
           );
         })()}
@@ -3126,7 +3206,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
 
                 {/* ── אגרות ── */}
                 {(() => {
-                  const FIXED_FEES = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
+                  const FIXED_FEES = ["פיצויי נופי","תאגיד המים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
                   const feeRows = bs.feeRows || FIXED_FEES.map(name => ({ id:name, name, contract:"", paid:"", planOnly:"", noClaims:false, notes:"" }));
                   const extraFeeRows = bs.extraFeeRows || [];
                   const allFeeRows = [...feeRows, ...extraFeeRows];
@@ -3208,17 +3288,25 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                           const rem = Number(r.contract||0) - Number(r.paid||0);
                           return (
                             <tr key={r.id} style={{ borderBottom:"1px solid #f1f5f9", background:i%2===0?"#fff":"#fafbfd" }}>
-                              <td style={{ padding:"7px 10px", color:"#64748b", fontSize:12 }}>קבלן</td>
+                              <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>
+                                {r.isMain ? "קבלן ראשי" : "קבלן"}
+                              </td>
                               <td style={{ padding:"7px 10px" }}>
                                 {r.isMain
-                                  ? <span style={{ fontSize:13, color:"#1e293b" }}>קבלן ראשי</span>
+                                  ? <input value={bs.contractorName||""} onChange={e=>upd("contractorName",e.target.value)} style={inputStyle} placeholder="שם הקבלן..." />
                                   : <input value={r.name} onChange={e=>updContractorRow(r.id,"name",e.target.value)} style={inputStyle} placeholder="שם הקבלן..." />}
                               </td>
                               <td style={{ padding:"7px 10px" }}><BudgetNumInput value={r.contract} onChange={v=>updContractorRow(r.id,"contract",v)} /></td>
                               <td style={{ padding:"7px 10px" }}><BudgetNumInput value={r.paid} onChange={v=>updContractorRow(r.id,"paid",v)} /></td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:rem<0?"#dc2626":"#1e293b" }}>{fmt(rem)}</td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#94a3b8" }}>—</td>
-                              <td />
+                              <td style={{ padding:"7px 6px", textAlign:"center" }}>
+                                {!r.isMain && (
+                                  <button onClick={()=>upd("extraContractorRows", extraContractorRows.filter(x=>x.id!==r.id))}
+                                    style={{ background:"none", border:"none", cursor:"pointer", color:"#ef4444", fontSize:14, lineHeight:1, padding:"2px 4px" }}
+                                    title="מחק שורה">✕</button>
+                                )}
+                              </td>
                               <td style={{ padding:"7px 10px" }}><input value={r.notes} onChange={e=>updContractorRow(r.id,"notes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
                             </tr>
                           );
@@ -3241,8 +3329,11 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                         {/* ── תקורות ── */}
                         {(() => {
                           const baseForOverhead = consultantsTotal + feeTotalContract + contractorContract;
+                          const overheadMode = bs.overheadMode || "pct";
                           const overheadPct = Number(bs.overheadPct||4);
-                          const overheadAmt = baseForOverhead * overheadPct / 100;
+                          const overheadAmt = overheadMode === "fixed"
+                            ? Number(bs.overheadFixed||0)
+                            : baseForOverhead * overheadPct / 100;
                           const bcmBase = baseForOverhead + overheadAmt;
                           const bcmPct = Number(bs.bcmPct||0);
                           const bcmAmt = bcmBase * bcmPct / 100;
@@ -3250,7 +3341,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                           const vatBase = bcmBase + bcmAmt;
                           const vatAmt = vatBase * vatPct / 100;
                           const basePaid = allRows.reduce((s,r)=>s+(r.paid||0),0) + feeTotalPaid + contractorPaid;
-                          const overheadPaid = Math.round(basePaid * overheadPct / 100);
+                          const overheadPaid = overheadMode === "fixed" ? Number(bs.overheadPaidFixed||0) : Math.round(basePaid * overheadPct / 100);
                           const overheadRem = overheadAmt - overheadPaid;
                           const bcmPaid = Math.round((basePaid + overheadPaid) * bcmPct / 100);
                           const bcmRem = bcmAmt - bcmPaid;
@@ -3258,7 +3349,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                           const vatRem = vatAmt - vatPaid;
                           const consultantsPlanOnly = allRows.reduce((s,r)=>s+(r.planOnly||0),0);
                           const basePlanOnly = consultantsPlanOnly + feeTotalContract;
-                          const overheadPlanOnlyCalc = basePlanOnly * overheadPct / 100;
+                          const overheadPlanOnlyCalc = overheadMode === "fixed" ? Number(bs.overheadPlanOnlyFixed||0) : basePlanOnly * overheadPct / 100;
                           const bcmPlanOnlyCalc = (basePlanOnly + overheadPlanOnlyCalc) * bcmPct / 100;
                           const vatPlanOnlyCalc = (basePlanOnly + overheadPlanOnlyCalc + bcmPlanOnlyCalc) * vatPct / 100;
                           const overheadTotalAmt = overheadAmt + bcmAmt + vatAmt;
@@ -3274,14 +3365,31 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                               <td style={{ padding:"7px 10px", fontSize:13, color:"#1e293b" }}>תקורות חברה עירונית</td>
                               <td style={{ padding:"7px 10px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:4, justifyContent:"flex-start" }}>
-                                  <span style={{ fontSize:11, color:"#64748b" }}>%</span>
-                                  <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
+                                  <span onClick={()=>upd("overheadMode", overheadMode==="fixed"?"pct":"fixed")}
+                                    title="לחץ לשינוי סוג"
+                                    style={{ fontSize:11, cursor:"pointer", fontWeight:700, userSelect:"none",
+                                      color: overheadMode==="fixed"?"#ea580c":"#64748b",
+                                      textDecoration: "underline dotted" }}>
+                                    {overheadMode==="fixed"?"₪":"%"}
+                                  </span>
+                                  {overheadMode==="fixed"
+                                    ? <input type="number" value={bs.overheadFixed||""} onChange={e=>upd("overheadFixed",e.target.value)} style={{...inputStyle, width:75, textAlign:"right"}} placeholder="סכום" />
+                                    : <input type="number" value={bs.overheadPct||""} onChange={e=>upd("overheadPct",e.target.value)} style={{...inputStyle, width:50, textAlign:"right"}} />
+                                  }
                                 </div>
                               </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b", fontWeight:600 }}>{fmt(overheadAmt)}</td>
-                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>{fmt(overheadPaid)}</td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>
+                                {overheadMode==="fixed"
+                                  ? <input type="number" value={bs.overheadPaidFixed||""} onChange={e=>upd("overheadPaidFixed",e.target.value)} style={{...inputStyle, width:"100%", textAlign:"right"}} placeholder="0" />
+                                  : fmt(overheadPaid)}
+                              </td>
                               <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:overheadRem<0?"#dc2626":"#1e293b" }}>{fmt(overheadRem)}</td>
-                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>{overheadPlanOnlyCalc > 0 ? fmt(Math.round(overheadPlanOnlyCalc)) : "—"}</td>
+                              <td style={{ padding:"7px 10px", textAlign:"right", fontSize:13, color:"#1e293b" }}>
+                                {overheadMode==="fixed"
+                                  ? <input type="number" value={bs.overheadPlanOnlyFixed||""} onChange={e=>upd("overheadPlanOnlyFixed",e.target.value)} style={{...inputStyle, width:"100%", textAlign:"right"}} placeholder="0" />
+                                  : (overheadPlanOnlyCalc > 0 ? fmt(Math.round(overheadPlanOnlyCalc)) : "—")}
+                              </td>
                               <td />
                               <td style={{ padding:"7px 10px" }}><input value={bs.overheadNotes||""} onChange={e=>upd("overheadNotes",e.target.value)} style={inputStyle} placeholder="הערות..." /></td>
                             </tr>
@@ -3426,6 +3534,12 @@ function TenderTab({ rows, setRows, quotesRows, budgetState, statsRows, openingD
     });
   });
 
+  const meta = rows.find(r=>r.key==="__meta__") || {};
+  const updMeta = patch => {
+    const exists = rows.find(r=>r.key==="__meta__");
+    setRows(exists ? rows.map(r=>r.key==="__meta__"?{...r,...patch}:r) : [...rows,{key:"__meta__",...patch}]);
+  };
+
   const updRow = (key, patch) => {
     const exists = rows.find(r=>r.key===key);
     setRows(exists ? rows.map(r=>r.key===key?{...r,...patch}:r) : [...rows,{id:Date.now(),key,...patch}]);
@@ -3442,6 +3556,19 @@ function TenderTab({ rows, setRows, quotesRows, budgetState, statsRows, openingD
     <div style={{ display:"flex", flexDirection:"column" }}>
         <div style={{ padding:"14px 20px 0" }}>
           <span style={{ fontWeight:700, fontSize:15, color:"#1e293b" }}>תוצאות מכרז</span>
+        </div>
+        <div style={{ padding:"10px 20px 0", display:"flex", alignItems:"center", gap:16, direction:"rtl" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>כתב כמויות קבלני:</label>
+            <input value={meta.boq||""} onChange={e=>updMeta({boq:e.target.value})}
+              placeholder="הזן ערך..."
+              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:200 }} />
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>תאריך:</label>
+            <FlatpickrDate value={meta.boqDate||""} onChange={v=>updMeta({boqDate:v})}
+              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:130 }} />
+          </div>
         </div>
         {consultants.length === 0
           ? <div style={{ padding:32, color:"#94a3b8", fontSize:13, textAlign:"right" }}>אין יועצים מאושרים בפרויקט</div>
@@ -3585,6 +3712,12 @@ function ContractorTab({ rows, setRows, quotesRows, tenderRows, budgetState, sta
     });
   });
 
+  const metaC = rows.find(r=>r.key==="__meta__") || {};
+  const updMetaC = patch => {
+    const exists = rows.find(r=>r.key==="__meta__");
+    setRows(exists ? rows.map(r=>r.key==="__meta__"?{...r,...patch}:r) : [...rows,{key:"__meta__",...patch}]);
+  };
+
   const updRow = (key, patch) => {
     const exists = rows.find(r=>r.key===key);
     setRows(exists ? rows.map(r=>r.key===key?{...r,...patch}:r) : [...rows,{id:Date.now(),key,...patch}]);
@@ -3598,6 +3731,19 @@ function ContractorTab({ rows, setRows, quotesRows, tenderRows, budgetState, sta
     <div style={{ display:"flex", flexDirection:"column" }}>
         <div style={{ padding:"14px 20px 0" }}>
           <span style={{ fontWeight:700, fontSize:15, color:"#1e293b" }}>חשבון קבלן סופי</span>
+        </div>
+        <div style={{ padding:"10px 20px 0", display:"flex", alignItems:"center", gap:16, direction:"rtl" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>חשבון קבלן סופי:</label>
+            <input value={metaC.finalBoq||""} onChange={e=>updMetaC({finalBoq:e.target.value})}
+              placeholder="הזן ערך..."
+              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:200 }} />
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:"#374151", whiteSpace:"nowrap" }}>תאריך:</label>
+            <FlatpickrDate value={metaC.finalBoqDate||""} onChange={v=>updMetaC({finalBoqDate:v})}
+              style={{ padding:"4px 8px", border:"1px solid #cbd5e1", borderRadius:6, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", width:130 }} />
+          </div>
         </div>
         {consultants.length === 0
           ? <div style={{ padding:32, color:"#94a3b8", fontSize:13, textAlign:"right" }}>אין יועצים מאושרים בפרויקט</div>
@@ -3872,7 +4018,7 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
         <div style={{ position:"fixed", inset:0, background:"#00000060", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000 }}
           onClick={closeModal}>
           <div className="fade" onClick={e=>e.stopPropagation()}
-            style={{ background:"#fff", borderRadius:18, padding:28, width:620, maxHeight:"88vh", overflowY:"auto", boxShadow:"0 24px 64px #0004", display:"flex", flexDirection:"column", gap:16 }}>
+            style={{ background:"#fff", borderRadius:18, padding:28, width:"90%", maxWidth:980, maxHeight:"88vh", overflowY:"auto", boxShadow:"0 24px 64px #0004", display:"flex", flexDirection:"column", gap:16 }}>
             <div style={{ fontSize:17, fontWeight:800, color:"#1e293b" }}>{editId==="new"?"➕ ספק חדש":"✏️ עריכת ספק"}</div>
 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
@@ -3898,16 +4044,17 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
               <div style={{ fontSize:13, fontWeight:700, color:"#374151", borderBottom:"1px solid #e2e8f0", paddingBottom:8, marginBottom:10 }}>
                 אנשי קשר ({editData.contacts.length})
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr 32px", gap:6, marginBottom:4 }}>
-                {["שם","טלפון","נייד","מייל",""].map((h,i)=><div key={i} style={{ fontSize:10, fontWeight:700, color:"#94a3b8" }}>{h}</div>)}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr 2fr 32px", gap:6, marginBottom:4 }}>
+                {["שם","טלפון","נייד","מייל","הערות",""].map((h,i)=><div key={i} style={{ fontSize:10, fontWeight:700, color:"#94a3b8" }}>{h}</div>)}
               </div>
               {editData.contacts.map((c, ci) => (
-                <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr 32px", gap:6, marginBottom:6, alignItems:"center",
+                <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 2fr 2fr 32px", gap:6, marginBottom:6, alignItems:"center",
                   background:ci%2===0?"#f8fafc":"#f0f9ff", borderRadius:8, padding:"6px 8px" }}>
                   <input value={c.contact||""} placeholder="שם" onChange={e=>updContact(c.id,"contact",e.target.value)} style={CS} />
                   <input value={c.phone||""}   placeholder="03-…" onChange={e=>updContact(c.id,"phone",e.target.value)}   style={CS} />
                   <input value={c.phone2||""}  placeholder="05x-…" onChange={e=>updContact(c.id,"phone2",e.target.value)} style={CS} />
                   <input value={c.email||""}   placeholder="מייל"  onChange={e=>updContact(c.id,"email",e.target.value)}  style={CS} />
+                  <input value={c.notes||""}   placeholder="הערות" onChange={e=>updContact(c.id,"notes",e.target.value)}  style={CS} />
                   {editData.contacts.length > 1 && <button onClick={()=>delContact(c.id)} style={{ background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:6,padding:"4px 6px",cursor:"pointer",fontSize:12 }}>🗑</button>}
                 </div>
               ))}
@@ -4059,10 +4206,9 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
     : [];
 
   const upd = (list) => {
-    setMilestones({
-      ...milestones,
-      [selCompany]: { ...(milestones[selCompany]||{}), [selProf]: list }
-    });
+    const companyData = { ...(milestones[selCompany]||{}), [selProf]: list };
+    if (list.length === 0) delete companyData[selProf];
+    setMilestones({ ...milestones, [selCompany]: companyData });
   };
 
   const addCustomProf = () => {
@@ -4871,6 +5017,10 @@ function CostsPage({ allData, projects, statsRows }) {
 function DashboardPage({ allData, projects, onNavigate, milestones }) {
   const fmt = n => n ? Number(n).toLocaleString("he-IL",{style:"currency",currency:"ILS",maximumFractionDigits:0}) : "—";
   const [highlightKey, setHighlightKey] = React.useState(null);
+  const [tt, setTt] = React.useState({ visible:false, text:"", x:0, y:0 });
+  const showTt = (text, e) => { if (text) setTt({ visible:true, text, x:e.clientX, y:e.clientY }); };
+  const moveTt = (e) => setTt(t => t.visible ? { ...t, x:e.clientX, y:e.clientY } : t);
+  const hideTt = () => setTt(t => ({ ...t, visible:false }));
 
   // Zone A: ממתין להמלצה על יועצים (מנהל מחלקה)
   // Zone B: ממתין לאישור מנהל פרויקט (חשבונות)
@@ -4993,7 +5143,8 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     </span>
   );
 
-  const ZoneTable = ({ title, items, color, bg, border, icon, emptyText }) => (
+  const ZoneTable = ({ title, items, color, bg, border, icon, emptyText }) => {
+    return (
     <Card style={{ padding:0, overflow:"hidden" }}>
       <div style={{ padding:"14px 20px", background:bg, borderBottom:"2px solid "+border, display:"flex", alignItems:"center", gap:10 }}>
         <span style={{ fontSize:20 }}>{icon}</span>
@@ -5008,7 +5159,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
         <table style={{ width:"100%", borderCollapse:"collapse", direction:"rtl" }}>
           <thead>
             <tr style={{ background:"#f8fafc" }}>
-              {[["סוג",70],["פרויקט",160],["תחום",110],["יועץ",120],["פרטים",110],["סכום",90],["תאריך",85]].map(([h,w]) => (
+              {[["סוג",70],["פרויקט",130],["תחום",90],["יועץ",100],["פרטים",180],["סכום",90],["תאריך",85]].map(([h,w]) => (
                 <th key={h} style={{ padding:"9px 10px", textAlign:"right", fontSize:11, fontWeight:700, color:"#94a3b8", borderBottom:"1px solid #e2e8f0", width:w }}>{h}</th>
               ))}
             </tr>
@@ -5023,10 +5174,14 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
                   onMouseOver={e => { if(!isHighlighted) e.currentTarget.style.background="#f0f9ff"; }}
                   onMouseOut={e  => { if(!isHighlighted) e.currentTarget.style.background=i%2===0?"#fff":"#fafbfd"; }}>
                   <td style={{ padding:"11px 10px" }}><TypeBadge type={item.type} /></td>
-                  <td style={{ padding:"11px 10px", fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.projName}</td>
-                  <td style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.fieldName}</td>
-                  <td style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.label !== "—" ? item.label : "—"}</td>
-                  <td style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
+                  <td onMouseEnter={e=>showTt(item.projName,e)} onMouseMove={moveTt} onMouseLeave={hideTt}
+                    style={{ padding:"11px 10px", fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:160 }}>{item.projName}</td>
+                  <td onMouseEnter={e=>showTt(item.fieldName,e)} onMouseMove={moveTt} onMouseLeave={hideTt}
+                    style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:110 }}>{item.fieldName}</td>
+                  <td onMouseEnter={e=>showTt(item.label!=="—"?item.label:"",e)} onMouseMove={moveTt} onMouseLeave={hideTt}
+                    style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{item.label !== "—" ? item.label : "—"}</td>
+                  <td onMouseEnter={e=>showTt(item.detail||item.tooltip||"",e)} onMouseMove={moveTt} onMouseLeave={hideTt}
+                    style={{ padding:"11px 10px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:110 }}>{item.detail || item.tooltip || "—"}</td>
                   <td style={{ padding:"11px 10px", fontSize:13, fontWeight:700, color, whiteSpace:"nowrap" }}>{fmtVal(item)}</td>
                   <td style={{ padding:"11px 10px", fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>
                     {new Date(item.createdAt || Date.now()).toLocaleDateString("en-GB")}
@@ -5038,9 +5193,10 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
         </table>
       )}
     </Card>
-  );
+    );
+  };
 
-  const COLS = [["סוג",80],["פרויקט",200],["תחום",130],["יועץ",140],["פרטים",130],["סכום",110],["תאריך",100]];
+  const COLS = [["סוג",80],["פרויקט",160],["תחום",100],["יועץ",110],["פרטים",220],["סכום",110],["תאריך",100]];
 
   const zones = [
     { title:"ממתין להמלצה על יועצים", items:zoneA,  color:"#374151", bg:"#fffbeb", border:"#fde68a", icon:"⏳", emptyText:"אין פריטים ממתינים" },
@@ -5056,6 +5212,13 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
 
   return (
     <div className="fade" style={{ padding:"34px 38px", display:"flex", flexDirection:"column", gap:0 }}>
+      {tt.visible && (
+        <div style={{ position:"fixed", left:tt.x+14, top:tt.y-36, zIndex:9999, background:"#1e293b", color:"#fff",
+          padding:"5px 12px", borderRadius:7, fontSize:13, pointerEvents:"none", maxWidth:340,
+          wordBreak:"break-word", boxShadow:"0 2px 8px rgba(0,0,0,.25)" }}>
+          {tt.text}
+        </div>
+      )}
       <div style={{ marginBottom:24 }}>
         <div style={{ fontSize:11, color:"#475569", fontWeight:700, letterSpacing:3, marginBottom:4 }}>גיליון גלובלי</div>
         <h1 style={{ fontSize:26, fontWeight:900, color:"#1e293b" }}>לוח בקרה</h1>
@@ -5102,7 +5265,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
                             <td style={{ padding:"11px 18px", fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.projName}</td>
                             <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.fieldName}</td>
                             <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.label !== "—" ? item.label : "—"}</td>
-                            <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
+                            <td onMouseEnter={e=>showTt(item.detail||item.tooltip||"",e)} onMouseMove={moveTt} onMouseLeave={hideTt} style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
                             <td style={{ padding:"11px 18px", fontSize:13, fontWeight:700, color:zone.color, whiteSpace:"nowrap" }}>{fmtVal(item)}</td>
                             <td style={{ padding:"11px 18px", fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>{new Date(item.createdAt || Date.now()).toLocaleDateString("en-GB")}</td>
                           </tr>
@@ -5136,7 +5299,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
                               <td style={{ padding:"11px 18px", fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.projName}</td>
                               <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.fieldName}</td>
                               <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.label !== "—" ? item.label : "—"}</td>
-                              <td style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
+                              <td onMouseEnter={e=>showTt(item.detail||item.tooltip||"",e)} onMouseMove={moveTt} onMouseLeave={hideTt} style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
                               <td style={{ padding:"11px 18px", fontSize:13, fontWeight:700, color:zone.color, whiteSpace:"nowrap" }}>{fmtVal(item)}</td>
                               <td style={{ padding:"11px 18px", fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>{new Date(item.createdAt || Date.now()).toLocaleDateString("en-GB")}</td>
                             </tr>
@@ -5686,7 +5849,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     bPush(["","","","","","","",""], "empty");
     bPush(["סה כ יועצים","",xConsTotal,xConsPaid,xConsTotal-xConsPaid,"","",""], "total");
 
-    var xFixedFeeNames = ["פיצויי נופי","מי אביבים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
+    var xFixedFeeNames = ["פיצויי נופי","תאגיד המים - לא דמי הקמה","כיבוי אש","חח\"י","בזק","הוט","רשות העתיקות","תיק מידע"];
     var xFeeRows = bs.feeRows || xFixedFeeNames.map(function(name) { return { id:name, name:name, contract:"", paid:"", planOnly:"", noClaims:false, notes:"" }; });
     var xAllFees = xFeeRows.concat(bs.extraFeeRows||[]);
     var xFeeTot = 0, xFeePaid = 0;
@@ -5852,7 +6015,9 @@ function AppInner({ currentUser, userRole, setUserRole }) {
         newRows.forEach(fieldGroup => {
           (fieldGroup.consultants || []).forEach(c => {
             if (c.approved && c.name && c.name.trim()) {
+              const existing = (projData.consultants || []).find(ex => ex.id === "q-"+c.id) || {};
               approvedFromQuotes.push({
+                ...existing,
                 id:         "q-" + c.id,
                 name:       c.name.trim(),
                 role:       fieldGroup.fieldName || "",
@@ -5861,7 +6026,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 contract:   c.contract || "",
                 payType:    c.payType  || "אחוזים",
                 value:      c.value    || "",
-                increases:  (projData.consultants || []).find(ex => ex.id === "q-"+c.id)?.increases || [],
                 _fromQuote: true,
               });
             }
@@ -6320,6 +6484,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                   planOnlyMap={planOnlyMap}
                   openingData={allData[projId]?.openingData||{}}
                   setOpeningData={od => setAllData(prev => ({...prev, [projId]: {...(prev[projId]||makeProjectData()), openingData: od}}))}
+                  tenderRows={getData(projId,"tender")}
+                  contractorRows={getData(projId,"contractor")}
                   onNavigate={(tab, consultantId) => {
                     setActiveTab(tab);
                     setOpenConsultantId(consultantId);
@@ -6506,7 +6672,10 @@ function AppInner({ currentUser, userRole, setUserRole }) {
               <button onClick={() => setShowBackupConfirm(false)}
                 style={{ background:"#f1f5f9", border:"none", borderRadius:8, width:30, height:30, fontSize:15, cursor:"pointer", color:"#64748b" }}>✕</button>
             </div>
-            <div style={{ fontSize:12, fontWeight:700, color:"#64748b", marginBottom:6 }}>מיקום שמירה</div>
+            <div style={{ fontSize:12, fontWeight:700, color:"#64748b", marginBottom:6, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <span>מיקום שמירה</span>
+              <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8", direction:"ltr" }}>Projects – Documents → ניהול יועצים → AI → backup COSTPILOT</span>
+            </div>
             <div style={{ display:"flex", alignItems:"center", gap:10, background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:9, padding:"10px 14px", marginBottom:20 }}>
               <span style={{ fontSize:18 }}>📁</span>
               <span style={{ flex:1, fontSize:13, color: backupDirName?"#1e293b":"#94a3b8", fontWeight: backupDirName?600:400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
