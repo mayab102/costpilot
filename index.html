@@ -79,16 +79,22 @@
       } catch(e) { console.error("save role error", e); }
     };
 
-    // נתונים משותפים - projects, allData נשמרים תחת מפתח קבוע
-    // נתונים אישיים - suppliers, companies, milestones, statsRows נשמרים לפי uid
-    const SHARED_KEYS = ["projects", "allData"];
+    // כל הנתונים משותפים לכולם
+    const SHARED_KEYS = ["projects", "allData", "suppliers", "companies", "milestones", "statsRows", "workScopes"];
     const saveToFirestore = (uid, key, data) => {
       const storageKey = SHARED_KEYS.includes(key) ? key : `${uid}_${key}`;
       return saveShared(storageKey, data);
     };
+    // טעינה: מנסה מפתח shared, ואם ריק — fallback למפתח הישן עם uid (מיגרציה)
     const loadFromFirestore = async (uid, key) => {
       const storageKey = SHARED_KEYS.includes(key) ? key : `${uid}_${key}`;
-      return loadShared(storageKey);
+      const data = await loadShared(storageKey);
+      if (data !== null) return data;
+      // fallback למפתח הישן (לפני מיגרציה)
+      if (SHARED_KEYS.includes(key) && key !== "projects" && key !== "allData") {
+        return loadShared(`${uid}_${key}`);
+      }
+      return null;
     };
 
 
@@ -903,25 +909,24 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
       "",
       "אנו מזמינים אתכם להגיש הצעת מחיר עבור הפרויקט הבא:",
       "",
+      ...(projectNumber           ? [`מספר פרויקט: ${projectNumber}`]                  : []),
       ...(projectName             ? [`שם פרויקט: ${projectName}`]                      : []),
+      ...(d.workDescription       ? [`מהות הפרויקט: ${d.workDescription}`]             : []),
       ...(d.address               ? [`כתובת: ${d.address}`]                            : []),
-      ...(d.workDescription       ? [`מהות העבודה: ${d.workDescription}`]              : []),
+      ...(companyName             ? [`חברה עירונית: ${companyName}`]                   : []),
       ...(d.plotArea              ? [`שטח החלקה: ${d.plotArea} מ"ר`]                   : []),
       ...(d.buildingArea          ? [`שטח המבנה: ${d.buildingArea} מ"ר`]               : []),
       ...(d.devArea               ? [`שטח הפיתוח: ${d.devArea} מ"ר`]                   : []),
+      ...(fmtNum(d.municipalEst)  ? [`אומדן עירוני: ${fmtNum(d.municipalEst)} ₪`]     : []),
+      ...(fmtNum(d.contractorEst) ? [`אומדן קבלני: ${fmtNum(d.contractorEst)} ₪`]     : []),
       ...(fmtDate(d.startDate)    ? [`תאריך התחלה מתוכנן: ${fmtDate(d.startDate)}`]   : []),
       ...(fmtDate(d.endDate)      ? [`תאריך סיום מתוכנן: ${fmtDate(d.endDate)}`]      : []),
-      ...(fmtNum(d.contractorEst) ? [`עלות קבלנית: ${fmtNum(d.contractorEst)} ₪`]     : []),
       ...(d.elevators             ? [`כמות מעליות: ${d.elevators}`]                    : []),
       ...(d.trees                 ? [`כמות עצים: ${d.trees}`]                          : []),
-      `תכנון BIM: ${d.bim === false ? "לא" : "כן"}`,
-      "",
-      "להלן תכולת העבודה לתחום זה:",
-      "",
-      "────────────────────────────",
+      `הפרויקט ${d.bim === false ? "לא" : ""} כולל תכנון ב-BIM.`.replace("  ", " "),
     ];
     const body = lines.join("\n");
-    const subject = `הזמנה להגשת הצעת מחיר — ${projectName || "פרויקט"} — ${field.fieldName}`;
+    const subject = `הזמנה להגשת הצעת מחיר - ${projectName || "פרויקט"} - ${field.fieldName}`;
     const bcc = bccEmails.join(";");
     const mailtoLink = `mailto:?bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(subject)}`;
     return { bcc, bccEmails, subject, body, mailtoLink };
@@ -990,24 +995,9 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
   };
 
   const downloadScopeEml = () => {
-    const scopeHtml = getScopeText();
     const { bccEmails, subject, body } = buildFieldMailData();
-    const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const bodyHtml = body.split("\n").map(l => l.trim() ? `<p style="margin:3px 0">${esc(l)}</p>` : "<p style='margin:6px 0'></p>").join("");
-    const fullHtml = `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;direction:rtl;text-align:right">${bodyHtml}${scopeHtml ? `<br>${scopeHtml}` : ""}<p style="margin-top:14px">לפרטים נוספים ושאלות, ניתן לפנות אלינו.</p></div>`;
-    const stripHtml = h => { const d = document.createElement("div"); d.innerHTML = h; return d.innerText||""; };
-    const plainBody = body + (scopeHtml ? "\n\n" + stripHtml(scopeHtml) : "") + "\n\nלפרטים נוספים ושאלות, ניתן לפנות אלינו.";
-    // copy event — הכי אמין, עובד גם על file://
-    const onCopy = e => {
-      e.clipboardData.setData("text/html", fullHtml);
-      e.clipboardData.setData("text/plain", plainBody);
-      e.preventDefault();
-    };
-    document.addEventListener("copy", onCopy);
-    document.execCommand("copy");
-    document.removeEventListener("copy", onCopy);
-    // פתח Outlook
-    window.location.href = `mailto:?bcc=${encodeURIComponent(bccEmails.join(";"))}&subject=${encodeURIComponent(subject)}`;
+    const bcc = bccEmails.join(";");
+    window.location.href = `mailto:?bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const fieldSuppliers = (suppliers||[]).filter(s => s.field === field.fieldName);
