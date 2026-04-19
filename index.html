@@ -18,7 +18,7 @@
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCvEd4suOYsXYDKFZbfLj2NYaEojXfI2m0",
@@ -34,7 +34,7 @@
     const db   = getFirestore(app);
 
     // Expose to window so Babel script can use them
-    window._firebase = { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc, getDoc, setDoc };
+    window._firebase = { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc, getDoc, setDoc, onSnapshot, serverTimestamp };
   </script>
 </head>
 <body>
@@ -80,21 +80,26 @@
     };
 
     // כל הנתונים משותפים לכולם
-    const SHARED_KEYS = ["projects", "allData", "suppliers", "companies", "milestones", "statsRows", "workScopes"];
+    const SHARED_KEYS = ["projects", "allData", "suppliers", "companies", "milestones", "statsRows", "workScopes", "managers"];
     const saveToFirestore = (uid, key, data) => {
       const storageKey = SHARED_KEYS.includes(key) ? key : `${uid}_${key}`;
       return saveShared(storageKey, data);
     };
-    // טעינה: מנסה מפתח shared, ואם ריק — fallback למפתח הישן עם uid (מיגרציה)
     const loadFromFirestore = async (uid, key) => {
       const storageKey = SHARED_KEYS.includes(key) ? key : `${uid}_${key}`;
       const data = await loadShared(storageKey);
       if (data !== null) return data;
-      // fallback למפתח הישן (לפני מיגרציה)
       if (SHARED_KEYS.includes(key) && key !== "projects" && key !== "allData") {
         return loadShared(`${uid}_${key}`);
       }
       return null;
+    };
+    // מנוי real-time לעדכונים מ-Firestore
+    const subscribeShared = (key, callback) => {
+      const { db, doc, onSnapshot } = getFirebase();
+      return onSnapshot(doc(db, "shared", key), snap => {
+        try { callback(snap.exists() ? JSON.parse(snap.data().value) : null); } catch(e) {}
+      }, err => console.error("subscribe error", key, err));
     };
 
 
@@ -505,6 +510,7 @@ const css = `
   .view-only button:not(.allow-readonly){pointer-events:none!important;opacity:.45!important;cursor:default!important;}
   @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
   @keyframes pulse-border{0%,100%{box-shadow:0 0 0 3px #bfdbfe;}50%{box-shadow:0 0 0 7px #93c5fd66;}} @keyframes pulse-row{0%,100%{background:#dbeafe;}50%{background:#bfdbfe;}}
+  @keyframes reminder-blink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.97);}}
   .field-highlight{animation:pulse-border .6s ease 3;} .row-highlight{animation:pulse-row .6s ease 3;}
 `;
 
@@ -748,10 +754,74 @@ function NameSearchInput({ value, suppliers, isBold, onSelect, autoFocus }) {
 }
 
 
-function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, openingData, statsRows, projectName, projectNumber, companyName, companyId, workScopes }) {
+// ── Helper: פתיחת Outlook עם גוף RTL בקליפבורד ──────────────────────────────
+const openOutlookEmail = (toEmail, subject, bodyText, bodyHtmlOverride) => {
+  const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const html = bodyHtmlOverride || `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:13px;direction:rtl;text-align:right">${
+    bodyText.split("\n").map(l => l.trim() ? `<p style="margin:2px 0">${esc(l)}</p>` : `<p style="margin:5px 0"> </p>`).join("")
+  }</div>`;
+  const onCopy = e => { e.clipboardData.setData("text/html", html); e.clipboardData.setData("text/plain", bodyText); e.preventDefault(); };
+  document.addEventListener("copy", onCopy);
+  document.execCommand("copy");
+  document.removeEventListener("copy", onCopy);
+  window.location.href = `mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}`;
+};
+
+// ── HTML email table builder ──────────────────────────────────────────────────
+const buildEmailHtml = (intro, tableHeaders, tableRows, outro, rowHighlights) => {
+  const thStyle = `style="padding:7px 12px;background:#f1f5f9;border:1px solid #cbd5e1;font-weight:700;font-size:12px;text-align:right"`;
+  const tdStyle = `style="padding:7px 12px;border:1px solid #e2e8f0;font-size:12px;text-align:right"`;
+  const rows = tableRows.map((r, i) => {
+    const trStyle = rowHighlights?.[i] ? ` style="background:#dcfce7"` : "";
+    return `<tr${trStyle}>${r.map(c=>`<td ${tdStyle}>${c}</td>`).join("")}</tr>`;
+  }).join("");
+  const headers = tableHeaders.map(h=>`<th ${thStyle}>${h}</th>`).join("");
+  const table = `<table style="border-collapse:collapse;width:100%;direction:rtl;margin:12px 0">\n<thead><tr>${headers}</tr></thead>\n<tbody>${rows}</tbody></table>`;
+  const esc = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const p = t => t.split("\n").map(l => l.trim() ? `<p style="margin:3px 0">${esc(l)}</p>` : `<p style="margin:6px 0"> </p>`).join("");
+  return `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:13px;direction:rtl;text-align:right;max-width:700px">${p(intro)}${table}${outro ? p(outro) : ""}</div>`;
+};
+
+// ── ApprovalEmailModal — popup לשליחת מייל לגורם המאשר הבא ───────────────────
+function ApprovalEmailModal({ toEmail, toName, subject, body, htmlBody, onSent, onCancel }) {
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}
+         onClick={onCancel}>
+      <div style={{ background:"#fff", borderRadius:14, padding:28, maxWidth:500, width:"95%", boxShadow:"0 8px 40px rgba(0,0,0,0.18)", direction:"rtl", fontFamily:"'Heebo',sans-serif" }}
+           onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight:800, fontSize:17, marginBottom:14, color:"#1e293b" }}>שלח מייל לגורם המאשר הבא?</div>
+        <div style={{ fontSize:13, color:"#475569", marginBottom:6 }}>
+          <span style={{ fontWeight:700 }}>אל: </span>{toName ? `${toName} (${toEmail})` : toEmail}
+        </div>
+        <div style={{ fontSize:13, color:"#475569", marginBottom:12 }}>
+          <span style={{ fontWeight:700 }}>נושא: </span>{subject}
+        </div>
+        <div style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"10px 14px", fontSize:12, whiteSpace:"pre-wrap", direction:"rtl", textAlign:"right", maxHeight:140, overflowY:"auto", color:"#1e293b", lineHeight:1.7, marginBottom:16 }}>
+          {body}
+        </div>
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+          <button onClick={onCancel}
+            style={{ padding:"8px 18px", borderRadius:8, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Heebo',sans-serif", color:"#475569" }}>
+            לא עכשיו
+          </button>
+          <button onClick={() => { openOutlookEmail(toEmail, subject, body, htmlBody || null); onSent(); }}
+            style={{ padding:"8px 22px", borderRadius:8, border:"none", background:"#2563eb", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif", color:"#fff" }}>
+            📧 כן — פתח Outlook
+          </button>
+        </div>
+        <div style={{ marginTop:8, padding:"7px 12px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:7, fontSize:12, color:"#92400e" }}>
+          לאחר פתיחת Outlook — הדבק את הגוף (Ctrl+V)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, openingData, statsRows, projectName, projectNumber, companyName, companyId, workScopes, projectMeta }) {
   const [newFieldName, setNewFieldName] = useState("");
   const [showNewField, setShowNewField] = useState(false);
   const [search, setSearch] = useState("");
+  const [approvalModal, setApprovalModal] = useState(null);
 
   useEffect(() => {
     if (rows.length > 1) {
@@ -777,12 +847,94 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
     setRows(rows.map(r => r.id === fieldId ? { ...r, consultants: newConsultants } : r));
   };
 
+  const prevRowsRef = React.useRef(rows);
+  useEffect(() => {
+    const prevRows = prevRowsRef.current;
+    prevRowsRef.current = rows;
+    if (!projectMeta) return;
+    for (const field of rows) {
+      const prevField = prevRows.find(f => f.id === field.id);
+      if (!prevField) continue;
+      const newlyRec = (field.consultants||[]).find(c =>
+        c.name && c.recommended && !(prevField.consultants||[]).find(oc => oc.id === c.id)?.recommended
+      );
+      if (!newlyRec) continue;
+      const subject = `המלצה על יועץ — ${field.fieldName} — ${projectMeta.name}`;
+      const body = `שלום ${projectMeta.tendersManager || ""},\n\nיועץ "${newlyRec.name}" נבחר כמומלץ עבור תחום "${field.fieldName}" בפרויקט "${projectMeta.name}".\n\nיש להעביר את ההמלצה למזמין לאישור.\n\nבברכה`;
+      const cEst = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"")) || Number((budgetState||{}).contractorEst||0);
+      const devPct = (statsRows||[]).filter(r=>(r.field||"").includes("פיתוח")||(r.field||"").includes("נוף")).reduce((s,r)=>s+Number(r.pct||0),0);
+      const archBase = cEst - cEst * devPct / 100;
+      const calcFee = c => {
+        const pct = Number(c.value||0) / 100;
+        const fn = field.fieldName || "";
+        if (!cEst || !pct) return 0;
+        if (["אדריכל","אדריכלות","אדריכלים"].includes((fn||"").trim())) return archBase * pct;
+        if (fn.includes("מנהל פרויקט")) return cEst * pct;
+        const pp = Number((statsRows||[]).find(r=>r.field===fn)?.pct||0)/100;
+        return cEst * pp * pct;
+      };
+      const allC = (field.consultants||[]).filter(c => c.name);
+      const tableRows = allC.map(c => {
+        const fee = c.payType === "אחוזים" ? calcFee(c) : null;
+        return [c.name, c.payType||"—", c.payType==="אחוזים"?`${c.value||0}%`:fmt(c.value), fee?fmt(fee):(c.payType!=="אחוזים"?fmt(c.value):"—"), c.notes||""];
+      });
+      const rowHighlights = allC.map(c => c.id === newlyRec.id);
+      const htmlBody = buildEmailHtml(
+        `שלום ${projectMeta.tendersManager || ""},\n\nיועץ "${newlyRec.name}" נבחר כמומלץ עבור תחום "${field.fieldName}" בפרויקט "${projectMeta.name}".\n\nלהלן כל הצעות המחיר:`,
+        ["יועץ", "סוג תשלום", "ערך", "סכום (₪)", "הערות"],
+        tableRows.length > 0 ? tableRows : [["—","","","",""]],
+        "יש להעביר את ההמלצה למזמין לאישור.\n\nבברכה,\nמערכת CostPilot",
+        rowHighlights
+      );
+      setApprovalModal({ toEmail: projectMeta.tendersManagerEmail||"", toName: projectMeta.tendersManager, subject, body, htmlBody });
+      break;
+    }
+  }, [rows]);
+
   const updateFieldName = (fieldId, name) => {
     setRows(rows.map(r => r.id === fieldId ? { ...r, fieldName: name } : r));
   };
 
   const updateFieldProp = (fieldId, key, val) => {
-    setRows(rows.map(r => r.id === fieldId ? { ...r, [key]: val } : r));
+    const ts = key === "readyToRecommend" && val ? { recommendPendingSince: Date.now() } : {};
+    setRows(rows.map(r => r.id === fieldId ? { ...r, [key]: val, ...ts } : r));
+    if (key === "readyToRecommend" && val && projectMeta) {
+      const field = rows.find(r => r.id === fieldId);
+      if (field) {
+        const subject = `בחירת יועץ מומלץ — ${field.fieldName} — ${projectMeta.name}`;
+        const cEst = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"")) || Number((budgetState||{}).contractorEst||0);
+        const devPct = (statsRows||[]).filter(r=>(r.field||"").includes("פיתוח")||(r.field||"").includes("נוף")).reduce((s,r)=>s+Number(r.pct||0),0);
+        const archBase = cEst - cEst * devPct / 100;
+        const calcFee = c => {
+          const pct = Number(c.value||0) / 100;
+          const fn = field.fieldName || "";
+          if (!cEst || !pct) return 0;
+          if (["אדריכל","אדריכלות","אדריכלים"].includes((fn||"").trim())) return archBase * pct;
+          if (fn.includes("מנהל פרויקט")) return cEst * pct;
+          const pp = Number((statsRows||[]).find(r=>r.field===fn)?.pct||0)/100;
+          return cEst * pp * pct;
+        };
+        const consultants = (field.consultants||[]).filter(c => c.name);
+        const tableRows = consultants.map(c => {
+          const fee = c.payType === "אחוזים" ? calcFee(c) : null;
+          return [
+            c.name || "—",
+            c.payType || "—",
+            c.payType === "אחוזים" ? `${c.value || 0}%` : fmt(c.value),
+            fee ? fmt(fee) : (c.payType !== "אחוזים" ? fmt(c.value) : "—"),
+            c.notes || ""
+          ];
+        });
+        const body = `שלום ${projectMeta.domainManager || ""},\n\nתחום "${field.fieldName}" בפרויקט "${projectMeta.name}" מוכן לבחירת יועץ מומלץ.\n\nיועצים: ${consultants.map(c=>c.name).join(", ")}\n\nאנא היכנסו למערכת ובחרו יועץ מומלץ.\n\nבברכה`;
+        const htmlBody = buildEmailHtml(
+          `שלום ${projectMeta.domainManager || ""},\n\nתחום "${field.fieldName}" בפרויקט "${projectMeta.name}" מוכן לבחירת יועץ מומלץ.\n\nלהלן הצעות היועצים:`,
+          ["יועץ", "סוג תשלום", "ערך", "סכום (₪)", "הערות"],
+          tableRows.length > 0 ? tableRows : [["אין יועצים","","","",""]],
+          "אנא היכנסו למערכת ובחרו יועץ מומלץ.\n\nבברכה,\nמערכת CostPilot"
+        );
+        setApprovalModal({ toEmail: projectMeta.domainManagerEmail || "", toName: projectMeta.domainManager, subject, body, htmlBody });
+      }
+    }
   };
 
   const updateFieldWorkScope = (fieldId, val) => {
@@ -791,6 +943,11 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {approvalModal && (
+        <ApprovalEmailModal {...approvalModal}
+          onSent={() => setApprovalModal(null)}
+          onCancel={() => setApprovalModal(null)} />
+      )}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ fontSize:18, fontWeight:800, color:"#1e293b" }}>הצעות מחיר יועצים</h2>
         <PrimaryButton onClick={() => setShowNewField(true)}>+ הוסף תחום חדש</PrimaryButton>
@@ -858,6 +1015,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
   const [expandedSubs, setExpandedSubs] = useState({});
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [mailToast, setMailToast] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [newestId, setNewestId] = useState(() => {
     const last = field.consultants[field.consultants.length - 1];
@@ -904,26 +1062,23 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
     const fmtNum = v => { const n = Number(String(v||"").replace(/,/g,"")); return n ? n.toLocaleString("en-US") : null; };
     const fmtDate = v => { if (!v) return null; const p = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/); return p ? `${p[3]}/${p[2]}/${p[1]}` : v; };
     const d = openingData || {};
+    const val = v => (v && String(v).trim()) ? String(v).trim() : "—";
     const lines = [
       "שלום רב,",
       "",
       "אנו מזמינים אתכם להגיש הצעת מחיר עבור הפרויקט הבא:",
       "",
-      ...(projectNumber           ? [`מספר פרויקט: ${projectNumber}`]                  : []),
-      ...(projectName             ? [`שם פרויקט: ${projectName}`]                      : []),
-      ...(d.workDescription       ? [`מהות הפרויקט: ${d.workDescription}`]             : []),
-      ...(d.address               ? [`כתובת: ${d.address}`]                            : []),
-      ...(companyName             ? [`חברה עירונית: ${companyName}`]                   : []),
-      ...(d.plotArea              ? [`שטח החלקה: ${d.plotArea} מ"ר`]                   : []),
-      ...(d.buildingArea          ? [`שטח המבנה: ${d.buildingArea} מ"ר`]               : []),
-      ...(d.devArea               ? [`שטח הפיתוח: ${d.devArea} מ"ר`]                   : []),
-      ...(fmtNum(d.municipalEst)  ? [`אומדן עירוני: ${fmtNum(d.municipalEst)} ₪`]     : []),
-      ...(fmtNum(d.contractorEst) ? [`אומדן קבלני: ${fmtNum(d.contractorEst)} ₪`]     : []),
-      ...(fmtDate(d.startDate)    ? [`תאריך התחלה מתוכנן: ${fmtDate(d.startDate)}`]   : []),
-      ...(fmtDate(d.endDate)      ? [`תאריך סיום מתוכנן: ${fmtDate(d.endDate)}`]      : []),
-      ...(d.elevators             ? [`כמות מעליות: ${d.elevators}`]                    : []),
-      ...(d.trees                 ? [`כמות עצים: ${d.trees}`]                          : []),
-      `הפרויקט ${d.bim === false ? "לא" : ""} כולל תכנון ב-BIM.`.replace("  ", " "),
+      `שם הפרויקט: ${val(projectName)}`,
+      `כתובת: ${val(d.address)}`,
+      `מהות העבודה: ${val(d.workDescription)}`,
+      `תאריך התחלה: ${fmtDate(d.startDate) || "—"}`,
+      `תאריך סיום: ${fmtDate(d.endDate) || "—"}`,
+      `שטח החלקה: ${d.plotArea ? d.plotArea + ' מ"ר' : "—"}`,
+      `שטח המבנה: ${d.buildingArea ? d.buildingArea + ' מ"ר' : "—"}`,
+      `אומדן קבלני: ${fmtNum(d.contractorEst) ? fmtNum(d.contractorEst) + " ₪" : "—"}`,
+      `כמות מעליות: ${val(d.elevators)}`,
+      `כמות עצים: ${val(d.trees)}`,
+      `שימוש ב-BIM: ${d.bim === false ? "לא" : "כן"}`,
     ];
     const body = lines.join("\n");
     const subject = `הזמנה להגשת הצעת מחיר - ${projectName || "פרויקט"} - ${field.fieldName}`;
@@ -996,8 +1151,15 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
 
   const downloadScopeEml = () => {
     const { bccEmails, subject, body } = buildFieldMailData();
-    const bcc = bccEmails.join(";");
-    window.location.href = `mailto:?bcc=${encodeURIComponent(bcc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:13px;direction:rtl;text-align:right">${
+      body.split("\n").map(l => l.trim() ? `<p style="margin:2px 0">${esc(l)}</p>` : `<p style="margin:5px 0"> </p>`).join("")
+    }</div>`;
+    const onCopy = e => { e.clipboardData.setData("text/html", html); e.clipboardData.setData("text/plain", body); e.preventDefault(); };
+    document.addEventListener("copy", onCopy);
+    document.execCommand("copy");
+    document.removeEventListener("copy", onCopy);
+    window.location.href = `mailto:?bcc=${encodeURIComponent(bccEmails.join(";"))}&subject=${encodeURIComponent(subject)}`;
   };
 
   const fieldSuppliers = (suppliers||[]).filter(s => s.field === field.fieldName);
@@ -1225,37 +1387,6 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
         })()}
       </div>
 
-      {/* תכולת עבודה לפרויקט זה */}
-      <details style={{ borderTop:"1px solid #e2e8f0", padding:"10px 18px 14px" }}>
-        <summary style={{ cursor:"pointer", fontSize:12, fontWeight:700, color:"#64748b", userSelect:"none", listStyle:"none", display:"flex", alignItems:"center", gap:6 }}>
-          <span>✏️</span><span>תכולת עבודה לתחום זה</span>
-          {getScopeText() ? <span style={{ fontSize:11, color:"#3b82f6", fontWeight:600 }}>• מוגדרת</span> : <span style={{ fontSize:11, color:"#94a3b8" }}>• לא הוגדרה</span>}
-          <label style={{ marginRight:"auto", display:"flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600, color:"#1d4ed8", cursor:"pointer",
-            background:"#eff6ff", border:"1.5px solid #93c5fd", borderRadius:6, padding:"2px 8px", whiteSpace:"nowrap" }}
-            onClick={e => e.stopPropagation()}>
-            📂 ייבוא מ-Word
-            <input type="file" accept=".docx" style={{ display:"none" }}
-              onChange={e => {
-                const file = e.target.files[0]; e.target.value="";
-                if (!file || !window.mammoth) return;
-                const reader = new FileReader();
-                reader.onload = ev => window.mammoth.convertToHtml({ arrayBuffer: ev.target.result })
-                  .then(r => onUpdateWorkScope && onUpdateWorkScope(r.value))
-                  .catch(() => {});
-                reader.readAsArrayBuffer(file);
-              }} />
-          </label>
-        </summary>
-        <RichEditor
-          html={getScopeText()}
-          onChange={val => onUpdateWorkScope && onUpdateWorkScope(val)}
-          placeholder="תכולת עבודה לתחום זה בפרויקט (מאוכלס אוטומטית מהמאגר הגלובלי, ניתן לעריכה)..."
-          style={{ width:"100%", boxSizing:"border-box", marginTop:8, border:"1.5px solid #e2e8f0", borderRadius:8, padding:"9px 12px",
-            fontSize:13, fontFamily:"'Heebo',sans-serif", direction:"rtl",
-            color:"#1e293b", background:"#f8fafc", lineHeight:1.7, minHeight:80 }}
-        />
-      </details>
-
       {/* מודל מייל לתחום */}
       {showEmailModal && (() => {
         const { bcc, bccEmails, subject, body, mailtoLink } = buildFieldMailData();
@@ -1283,19 +1414,6 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                 {body}
               </div>
 
-              {scopeText ? (<>
-                <div style={{ marginBottom:4, fontSize:12, fontWeight:700, color:"#475569" }}>תכולת עבודה (תצורף כ-PDF בקובץ המייל):</div>
-                <div style={{ background:"#f0f9ff", border:"1.5px solid #bae6fd", borderRadius:8, padding:"10px 14px", fontSize:12, whiteSpace:"pre-wrap", direction:"rtl", textAlign:"right", maxHeight:120, overflowY:"auto", color:"#0c4a6e", lineHeight:1.6, marginBottom:8 }}>
-                  {scopeText}
-                </div>
-              </>) : (
-                <div style={{ fontSize:12, color:"#ef4444", marginBottom:8, fontWeight:600 }}>לא הוגדרה תכולת עבודה לתחום זה — המייל יישלח ללא קובץ מצורף.</div>
-              )}
-
-              <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"10px 14px", fontSize:12, color:"#166534", marginBottom:12 }}>
-                💡 לחיצה תפתח את Outlook עם הנמענים והנושא, ותעתיק את גוף המייל{scopeText ? " ותכולת העבודה" : ""} ללוח — הדבק בשדה הגוף (Ctrl+V) ושלח.
-              </div>
-
               <div style={{ display:"flex", gap:10, justifyContent:"flex-end", flexWrap:"wrap" }}>
                 <button onClick={() => setShowEmailModal(false)}
                   style={{ padding:"8px 18px", borderRadius:8, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Heebo',sans-serif", color:"#475569" }}>
@@ -1306,6 +1424,9 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                   📧 פתח ב-Outlook
                 </button>
               </div>
+              <div style={{ marginTop:8, padding:"8px 12px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:7, fontSize:12, color:"#92400e", textAlign:"right" }}>
+                לאחר פתיחת Outlook — הדבק את הגוף בשדה הטקסט (Ctrl+V)
+              </div>
             </div>
           </div>
         );
@@ -1315,9 +1436,10 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
 }
 
 // ── Tab: רשימת יועצים ─────────────────────────────────────────────────────────
-function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, scrollToIncreaseId, suppliers, openingData, setOpeningData }) {
+function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, scrollToIncreaseId, suppliers, openingData, setOpeningData, projectMeta }) {
   const [inc, setInc] = useState({ reason:"", amount:"", date:"", planOnly:false });
   const [increases, setIncreases] = useState(consultant?.increases || []);
+  const [approvalModal, setApprovalModal] = useState(null);
   const [showEstForm, setShowEstForm] = useState(false);
   const [newEstAmount, setNewEstAmount] = useState("");
   const [newSectAmount, setNewSectAmount] = useState("");
@@ -1518,10 +1640,39 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
     setInc({ reason:"", amount:"", date:"", planOnly:false });
   };
   const delIncrease    = id  => saveIncreases(increases.filter(x => x.id !== id));
-  const updateIncrease = (id, key, val) =>
+  const updateIncrease = (id, key, val) => {
     saveIncreases(increases.map(x => x.id === id ? { ...x, [key]: val } : x));
+    if (key === "sentToManager" && val && projectMeta?.unitManagerEmail) {
+      const increase = increases.find(x => x.id === id);
+      if (increase) {
+        const approvedInc = increases.filter(x => x.approvedIncrease).reduce((s,x) => s + Number(x.amount||0), 0);
+        const newTotal = Number(consultant.contractFee||0) + approvedInc + Number(increase.amount||0);
+        const subject = `CostPilot — בקשת הגדלה ממתינה לאישורך — ${projectMeta.name || ""}`;
+        const details = `פרויקט: ${projectMeta.name || ""}\nיועץ: ${consultant.name || ""}\nסכום התקשרות קיים: ${fmt(consultant.contractFee||0)}\nסיבת ההגדלה: ${increase.reason || "—"}\nסכום ההגדלה: ${fmt(increase.amount)}\nסכום כולל חדש: ${fmt(newTotal)}`;
+        const body = `שלום ${projectMeta.unitManager || ""},\n\nבקשת הגדלה ממתינה לאישורך כמנהל יחידה.\n\n${details}\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+        const htmlBody = buildEmailHtml(
+          `שלום ${projectMeta.unitManager || ""},\n\nבקשת הגדלה עבור יועץ "${consultant.name || ""}" בפרויקט "${projectMeta.name || ""}" ממתינה לאישורך כמנהל יחידה.`,
+          ["פרט", "סכום"],
+          [
+            ["סכום התקשרות קיים", fmt(consultant.contractFee||0)],
+            ["סיבת ההגדלה", increase.reason || "—"],
+            ["סכום ההגדלה", fmt(increase.amount)],
+            ["סכום כולל חדש", fmt(newTotal)]
+          ],
+          "אנא היכנסו למערכת ואשרו את ההגדלה.\n\nבברכה,\nמערכת CostPilot"
+        );
+        setApprovalModal({ toEmail: projectMeta.unitManagerEmail, toName: projectMeta.unitManager, subject, body, htmlBody });
+      }
+    }
+  };
 
   return (
+    <>
+    {approvalModal && (
+      <ApprovalEmailModal {...approvalModal}
+        onSent={() => setApprovalModal(null)}
+        onCancel={() => setApprovalModal(null)} />
+    )}
     <div style={{ position:"fixed", inset:0, background:"#00000060", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}
       onClick={onClose}>
       <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:700, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 64px #0004" }}
@@ -1936,10 +2087,11 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
         </div>
       </div>
     </div>
+    </>
   );
 }
 
-function ConsultantsTab({ rows, setRows, quotesRows, budgetState, statsRows, openConsultantId, scrollToIncreaseId, suppliers, projectName, openingData, setOpeningData }) {
+function ConsultantsTab({ rows, setRows, quotesRows, budgetState, statsRows, openConsultantId, scrollToIncreaseId, suppliers, projectName, openingData, setOpeningData, projectMeta }) {
   const [openId, setOpenId] = useState(openConsultantId || null);
   const [search, setSearch] = useState("");
 
@@ -2113,6 +2265,7 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#f0f9ff"}">${ro
           suppliers={suppliers||[]}
           openingData={openingData||{}}
           setOpeningData={setOpeningData}
+          projectMeta={projectMeta}
         />
       )}
     </div>
@@ -2314,12 +2467,13 @@ function ReasonCell({ value, onCommit }) {
   );
 }
 
-function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultantsRows, budgetState, statsRows, companyId, milestones, openInvoiceId, onNavigate, openingData, localMilestones, setLocalMilestones }) {
+function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultantsRows, budgetState, statsRows, companyId, milestones, openInvoiceId, onNavigate, openingData, localMilestones, setLocalMilestones, projectMeta }) {
 
   const [selConsultant, setSelConsultant] = useState(null);
   const [expanded, setExpanded]           = useState({});
   const [editingMs, setEditingMs]         = useState(false);
   const [draftMs, setDraftMs]             = useState([]);
+  const [approvalModal, setApprovalModal] = useState(null);
 
   // Map: consultantName → first field they appear in (for backward-compat with old invoices without fieldName)
   const firstFieldByName = {};
@@ -2423,20 +2577,73 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
   };
 
   const getInvoices   = key => rows.filter(r => invMatchesField(r, sel?.field||"", sel?.name||"") && r.rowKey===key);
-  const addInvoice = (key) => {
+  const addInvoice = (milestoneKey) => {
     if (!sel?.name) return;
     if (sel?.noClaims) return;
-    setRows(prev => {
-      const newRow = {
-        id:Date.now(), createdAt: Date.now(), consultantName:sel.name, fieldName:sel.field||"", rowKey:key,
-        invoiceNum:"", receiptDate:"", amount:"", pct:"",
-        toMunicipality:false, toConsultant:false, rejected:false,
-        reason:"", pmApproved:false, unitManagerApproved:false,
-      };
-      return [...prev, newRow];
-    });
+    const newRow = {
+      id:Date.now(), createdAt: Date.now(), pmPendingSince: Date.now(),
+      consultantName:sel.name, fieldName:sel.field||"", rowKey:milestoneKey,
+      invoiceNum:"", receiptDate:"", amount:"", pct:"",
+      toMunicipality:false, toConsultant:false, rejected:false,
+      reason:"", pmApproved:false, unitManagerApproved:false, pmEmailShown:false,
+    };
+    setRows(prev => [...prev, newRow]);
   };
-  const updateInvoice = (id, patch) => setRows(prev => prev.map(r=>r.id===id?{...r,...patch}:r));
+  const updateInvoice = (id, patch) => {
+    const inv = rows.find(r => r.id===id);
+    const extra = {};
+    if (patch.pmApproved === true) extra.umPendingSince = Date.now();
+    // When amount is set for the first time → show PM email modal
+    const amountNowSet = patch.amount && Number(patch.amount) > 0;
+    const pmEmailNeeded = amountNowSet && inv && !inv.pmEmailShown && !inv.pmApproved;
+    if (pmEmailNeeded) extra.pmEmailShown = true;
+    setRows(prev => prev.map(r => r.id===id ? {...r,...patch,...extra} : r));
+    if (pmEmailNeeded && projectMeta) {
+      const pmEmail = projectMeta.status === "ביצוע" ? projectMeta.executionManagerEmail : projectMeta.planningManagerEmail;
+      const pmName  = projectMeta.status === "ביצוע" ? projectMeta.executionManager  : projectMeta.planningManager;
+      if (pmEmail) {
+        const mergedInv = { ...inv, ...patch };
+        const invMs = fieldMilestones.find(m => "m-"+m.id === mergedInv.rowKey);
+        const subject = `CostPilot — חשבונית ממתינה לאישורך — ${projectMeta.name}`;
+        const invoiceDetails = `פרויקט: ${projectMeta.name}\nיועץ: ${mergedInv.consultantName || sel?.name || ""}${invMs ? `\nאבן דרך: ${invMs.name} (${invMs.pct}%)` : ""}\nמספר חשבון: ${mergedInv.invoiceNum || "—"}\nסכום: ${mergedInv.amount ? fmt(Number(mergedInv.amount)) : "—"}`;
+        const body = `שלום ${pmName || ""},\n\nחשבונית חדשה ממתינה לאישורך כמנהל הפרויקט.\n\n${invoiceDetails}\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+        const msRows = sel ? fieldMilestones.map(m => {
+          const k = "m-" + m.id;
+          const required = (sel.fee || 0) * Number(m.pct||0) / 100;
+          const paid = rowTotal(k);
+          return [m.name || "—", fmt(required), fmt(paid), fmt(required - paid)];
+        }) : [];
+        const htmlBody = buildEmailHtml(
+          `שלום ${pmName || ""},\n\nחשבונית חדשה ממתינה לאישורך כמנהל הפרויקט.\n\n${invoiceDetails}`,
+          ["אבן דרך", "נדרש (₪)", "שולם (₪)", "יתרה (₪)"],
+          msRows.length > 0 ? msRows : [["(אין אבני דרך מוגדרות)", "", "", ""]],
+          "אנא היכנסו למערכת ואשרו את החשבונית.\n\nבברכה,\nמערכת CostPilot"
+        );
+        setApprovalModal({ toEmail: pmEmail, toName: pmName, subject, body, htmlBody });
+      }
+    }
+    if (patch.pmApproved === true && projectMeta?.unitManagerEmail) {
+      if (inv) {
+        const umMs = fieldMilestones.find(m => "m-"+m.id === inv.rowKey);
+        const subject = `CostPilot — חשבונית ממתינה לאישורך — ${projectMeta.name}`;
+        const invoiceDetails = `פרויקט: ${projectMeta.name}\nיועץ: ${inv.consultantName || ""}${umMs ? `\nאבן דרך: ${umMs.name} (${umMs.pct}%)` : ""}\nמספר חשבון: ${inv.invoiceNum || "—"}\nסכום: ${inv.amount ? fmt(Number(inv.amount)) : "—"}`;
+        const body = `שלום ${projectMeta.unitManager || ""},\n\nחשבונית אושרה על ידי מנהל הפרויקט וממתינה לאישורך כמנהל יחידה.\n\n${invoiceDetails}\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+        const msRows = sel ? fieldMilestones.map(m => {
+          const key = "m-" + m.id;
+          const required = (sel.fee || 0) * Number(m.pct||0) / 100;
+          const paid = rowTotal(key);
+          return [m.name || "—", fmt(required), fmt(paid), fmt(required - paid)];
+        }) : [];
+        const htmlBody = buildEmailHtml(
+          `שלום ${projectMeta.unitManager || ""},\n\nחשבונית אושרה על ידי מנהל הפרויקט וממתינה לאישורך כמנהל יחידה.\n\n${invoiceDetails}`,
+          ["אבן דרך", "נדרש (₪)", "שולם (₪)", "יתרה (₪)"],
+          msRows.length > 0 ? msRows : [["(אין אבני דרך מוגדרות)", "", "", ""]],
+          "אנא היכנסו למערכת ואשרו את החשבונית.\n\nבברכה,\nמערכת CostPilot"
+        );
+        setApprovalModal({ toEmail: projectMeta.unitManagerEmail, toName: projectMeta.unitManager, subject, body, htmlBody });
+      }
+    }
+  };
   const removeInvoice = id => setRows(rows.filter(r=>r.id!==id));
 
   const setNoClaims = (val) => {
@@ -2649,6 +2856,11 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      {approvalModal && (
+        <ApprovalEmailModal {...approvalModal}
+          onSent={() => setApprovalModal(null)}
+          onCancel={() => setApprovalModal(null)} />
+      )}
 
       {/* ── Consultant selector ── */}
       <Card>
@@ -4513,6 +4725,117 @@ function CompaniesPage({ companies, setCompanies }) {
   );
 }
 
+// ── Global page: מנהלים ──────────────────────────────────────────────────────
+const MANAGER_ROLES = [
+  { value:"planning",  label:"מנהל תכנון" },
+  { value:"execution", label:"מנהל ביצוע" },
+  { value:"unit",      label:"מנהל יחידה" },
+  { value:"domain",    label:"מנהל תחום"  },
+  { value:"tenders",   label:"מנהל מכרזים" },
+];
+function ManagersPage({ managers, setManagers }) {
+  const [form, setForm] = useState({ name:"", role:"planning", email:"", phone:"" });
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+
+  const add = () => {
+    if (!form.name.trim()) return;
+    setManagers([...managers, { ...form, id: Date.now() }]);
+    setForm({ name:"", role:"planning", email:"", phone:"" });
+    setShowAdd(false);
+  };
+  const del = id => setManagers(managers.filter(m => m.id !== id));
+  const saveEdit = () => {
+    setManagers(managers.map(m => m.id === editId ? { ...m, ...editForm } : m));
+    setEditId(null);
+  };
+  const roleLabel = role => MANAGER_ROLES.find(r => r.value === role)?.label || role;
+
+  return (
+    <div className="fade" style={{ padding:"34px 38px", display:"flex", flexDirection:"column", gap:22 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+        <div>
+          <div style={{ fontSize:11, color:"#64748b", fontWeight:700, letterSpacing:3, marginBottom:4 }}>גיליון גלובלי</div>
+          <h1 style={{ fontSize:24, fontWeight:900, color:"#1e293b", margin:0 }}>👔 מנהלים</h1>
+          <div style={{ fontSize:13, color:"#94a3b8", marginTop:4 }}>רשימת מנהלים גלובלית — לשיוך לפרויקטים ולשליחת מיילים אוטומטיים</div>
+        </div>
+        <PrimaryButton onClick={() => setShowAdd(v => !v)}>{showAdd ? "✕ סגור" : "+ הוסף מנהל"}</PrimaryButton>
+      </div>
+
+      {showAdd && (
+        <Card className="fade">
+          <div style={{ fontWeight:700, color:"#1e293b", marginBottom:14, fontSize:15 }}>הוסף מנהל</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:12, alignItems:"flex-end" }}>
+            <TextInput label="שם מלא" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} />
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              <label style={{ fontSize:12, color:"#64748b", fontWeight:600 }}>תפקיד</label>
+              <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}
+                style={{ padding:"8px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#1e293b", outline:"none", direction:"rtl", minWidth:140 }}>
+                {MANAGER_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <TextInput label="אימייל" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
+            <TextInput label="טלפון" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} />
+          </div>
+          <div style={{ marginTop:14, display:"flex", gap:10 }}>
+            <PrimaryButton onClick={add}>+ הוסף מנהל</PrimaryButton>
+            <button onClick={() => setShowAdd(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:9, padding:"9px 16px", fontSize:13, color:"#64748b", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
+          </div>
+        </Card>
+      )}
+
+      <Card style={{ padding:0, overflow:"hidden" }}>
+        <div style={{ padding:"14px 20px", borderBottom:"1px solid #e8edf4", fontWeight:700, color:"#1e293b" }}>
+          רשימת מנהלים ({managers.length})
+        </div>
+        {managers.length === 0 && (
+          <div style={{ padding:32, textAlign:"right", color:"#94a3b8" }}>אין מנהלים עדיין</div>
+        )}
+        {managers.map((m, i) => (
+          <div key={m.id} style={{ borderBottom: i<managers.length-1?"1px solid #f1f5f9":"none" }}>
+            {editId === m.id ? (
+              <div style={{ padding:"14px 20px", background:"#f8fafc", display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+                <TextInput label="שם מלא" value={editForm.name||""} onChange={e=>setEditForm({...editForm,name:e.target.value})} />
+                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  <label style={{ fontSize:12, color:"#64748b", fontWeight:600 }}>תפקיד</label>
+                  <select value={editForm.role||"planning"} onChange={e=>setEditForm({...editForm,role:e.target.value})}
+                    style={{ padding:"8px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#1e293b", outline:"none", direction:"rtl", minWidth:140 }}>
+                    {MANAGER_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <TextInput label="אימייל" value={editForm.email||""} onChange={e=>setEditForm({...editForm,email:e.target.value})} />
+                <TextInput label="טלפון" value={editForm.phone||""} onChange={e=>setEditForm({...editForm,phone:e.target.value})} />
+                <div style={{ display:"flex", gap:8 }}>
+                  <PrimaryButton onClick={saveEdit}>שמור</PrimaryButton>
+                  <button onClick={()=>setEditId(null)} style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"8px 14px", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontSize:13 }}>ביטול</button>
+                </div>
+              </div>
+            ) : (
+              <div className="hov-row" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 20px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                  <div style={{ width:40, height:40, borderRadius:10, background:"linear-gradient(135deg,#fef9c3,#fde68a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>👔</div>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14, color:"#1e293b" }}>{m.name} <span style={{ fontSize:12, color:"#2563eb", fontWeight:600, marginRight:6 }}>{roleLabel(m.role)}</span></div>
+                    <div style={{ fontSize:12, color:"#94a3b8", marginTop:2 }}>
+                      {[m.email, m.phone].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={()=>{ setEditId(m.id); setEditForm({...m}); }}
+                    style={{ background:"#f0f9ff", color:"#0369a1", border:"1px solid #bae6fd", borderRadius:6, padding:"4px 12px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>עריכה</button>
+                  <DeleteButton onClick={()=>del(m.id)} />
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
 // ── Global page: תבניות אבני דרך ─────────────────────────────────────────────
 function MilestonesPage({ companies, milestones, setMilestones, professions }) {
   const [selCompany,  setSelCompany]  = useState("");
@@ -5361,7 +5684,7 @@ function CostsPage({ allData, projects, statsRows }) {
 }
 
 // ── Global page: לוח בקרה ──────────────────────────────────────────────────
-function DashboardPage({ allData, projects, onNavigate, milestones }) {
+function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailSent }) {
   const fmt = n => n ? Number(n).toLocaleString("he-IL",{style:"currency",currency:"ILS",maximumFractionDigits:0}) : "—";
   const [highlightKey, setHighlightKey] = React.useState(null);
   const [tt, setTt] = React.useState({ visible:false, text:"", x:0, y:0 });
@@ -5384,10 +5707,15 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
         const alreadyApproved = field.consultants.some(c => c.name?.trim() && c.approved);
         const namedConsultants = field.consultants.filter(c => c.name?.trim());
         const anyRecommended = namedConsultants.some(c => c.recommended);
-        if (!anyRecommended && !alreadyApproved && namedConsultants.length > 0)
+        if (!anyRecommended && !alreadyApproved && namedConsultants.length > 0) {
+          const da = allData[proj.id] || {};
           zoneA.push({ projId: proj.id, projName: proj.name, fieldId: field.id, fieldName: field.fieldName,
             label: "—", value: null, type:"consultant", key: `z1-${proj.id}-${field.id}`, tab:"quotes",
-            createdAt: Math.min(...namedConsultants.map(c => c.createdAt || c.id)) });
+            createdAt: Math.min(...namedConsultants.map(c => c.createdAt || c.id)),
+            pendingSince: field.recommendPendingSince || field.createdAt || field.id,
+            lastEmailAt: field.recommendLastEmailAt || null,
+            managerEmail: da.domainManagerEmail || "", managerName: da.domainManager || "", stage: "recommendation" });
+        }
       }
       field.consultants.filter(c => c.name?.trim() && c.recommended && !c.sentToMunicipality && !c.approved).forEach(c =>
         zoneSend.push({ projId: proj.id, projName: proj.name, fieldId: field.id, fieldName: field.fieldName,
@@ -5453,18 +5781,23 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
         value: inv.amount, payType:"סכום קבוע", type:"invoice", tab:"accounts",
         fieldId: null, tooltip: inv.reason || "", invoiceId: inv.id,
         createdAt: inv.createdAt || inv.id };
+      const d = allData[proj.id] || {};
       if (inv.toConsultant)
         zoneC.push({ ...base, key:`invc-${proj.id}-${inv.id}` });
       else if (!inv.pmApproved) {
-        const d = allData[proj.id] || {};
-        const managerName = proj.status === "תכנון" ? (d.planningManager || "")
-                          : proj.status === "ביצוע" ? (d.executionManager || "")
-                          : "";
-        zoneB.push({ ...base, key:`inv1-${proj.id}-${inv.id}`, managerName });
+        const managerName  = proj.status === "ביצוע" ? (d.executionManager || d.planningManager || "") : (d.planningManager || d.executionManager || "");
+        const managerEmail = proj.status === "ביצוע" ? (d.executionManagerEmail || d.planningManagerEmail || "") : (d.planningManagerEmail || d.executionManagerEmail || "");
+        zoneB.push({ ...base, key:`inv1-${proj.id}-${inv.id}`, managerName,
+          pendingSince: inv.pmPendingSince || inv.createdAt || inv.id,
+          lastEmailAt: inv.pmLastEmailAt || null,
+          managerEmail, stage: "pm" });
       }
       else {
         if (!inv.unitManagerApproved)
-          zoneUM.push({ ...base, key:`inv2-${proj.id}-${inv.id}` });
+          zoneUM.push({ ...base, key:`inv2-${proj.id}-${inv.id}`,
+            pendingSince: inv.umPendingSince || inv.createdAt || inv.id,
+            lastEmailAt: inv.umLastEmailAt || null,
+            managerEmail: d.unitManagerEmail || "", managerName: d.unitManager || "", stage: "um" });
         else if (!inv.toMunicipality)
           zone2.push({ ...base, key:`inv3-${proj.id}-${inv.id}` });
       }
@@ -5543,7 +5876,39 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
     );
   };
 
-  const COLS = [["סוג",80],["פרויקט",160],["תחום",100],["יועץ",110],["פרטים",220],["סכום",110],["תאריך",100]];
+  const COLS = [["סוג",80],["פרויקט",160],["תחום",100],["יועץ",110],["פרטים",220],["סכום",110],["תאריך",100],["תזכורת",90]];
+
+  // ── Reminder button — מואר אחרי 3 ימים, מהבהב אחרי 2 ימים נוספים ─────────
+  const ReminderButton = ({ item }) => {
+    if (!item.managerEmail || !item.pendingSince) return null;
+    const DAY = 86400000;
+    const daysPending = (Date.now() - item.pendingSince) / DAY;
+    if (daysPending < 3) return null;
+    const daysSinceEmail = item.lastEmailAt ? (Date.now() - item.lastEmailAt) / DAY : null;
+    const isBlinking = daysSinceEmail !== null && daysSinceEmail >= 2;
+    const buildBody = () => {
+      if (item.stage === "recommendation")
+        return `שלום ${item.managerName || ""},\n\nתזכורת — תחום "${item.fieldName}" בפרויקט "${item.projName}" ממתין לבחירת יועץ מומלץ.\n\nאנא היכנסו למערכת ובחרו יועץ.\n\nבברכה`;
+      if (item.stage === "pm")
+        return `שלום ${item.managerName || ""},\n\nתזכורת — חשבונית ${item.detail || ""} של יועץ ${item.label || ""} בפרויקט "${item.projName}" ממתינה לאישורך כמנהל פרויקט.\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+      return `שלום ${item.managerName || ""},\n\nתזכורת — חשבונית ${item.detail || ""} של יועץ ${item.label || ""} בפרויקט "${item.projName}" ממתינה לאישורך כמנהל יחידה.\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+    };
+    const subjectMap = { recommendation:`CostPilot — תזכורת: בחירת יועץ — ${item.projName}`, pm:`CostPilot — תזכורת: אישור חשבונית — ${item.projName}`, um:`CostPilot — תזכורת: אישור חשבונית — ${item.projName}` };
+    return (
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          openOutlookEmail(item.managerEmail, subjectMap[item.stage] || "CostPilot — תזכורת", buildBody());
+          if (onMarkEmailSent) onMarkEmailSent(item);
+        }}
+        style={{ padding:"4px 10px", fontSize:11, fontWeight:700, borderRadius:7, border:"none", cursor:"pointer", fontFamily:"'Heebo',sans-serif", whiteSpace:"nowrap",
+          background: isBlinking ? "#fef3c7" : "#dbeafe",
+          color: isBlinking ? "#92400e" : "#1d4ed8",
+          animation: isBlinking ? "reminder-blink 1.2s ease-in-out infinite" : "none" }}>
+        📧 {isBlinking ? "תזכורת!" : "תזכורת"}
+      </button>
+    );
+  };
 
   const zones = [
     { title:"ממתין להמלצה על יועצים", items:zoneA,  color:"#374151", bg:"#fffbeb", border:"#fde68a", icon:"⏳", emptyText:"אין פריטים ממתינים" },
@@ -5615,6 +5980,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
                             <td onMouseEnter={e=>showTt(item.detail||item.tooltip||"",e)} onMouseMove={moveTt} onMouseLeave={hideTt} style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
                             <td style={{ padding:"11px 18px", fontSize:13, fontWeight:700, color:zone.color, whiteSpace:"nowrap" }}>{fmtVal(item)}</td>
                             <td style={{ padding:"11px 18px", fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>{new Date(item.createdAt || Date.now()).toLocaleDateString("en-GB")}</td>
+                            <td style={{ padding:"6px 10px" }}><ReminderButton item={item} /></td>
                           </tr>
                         );
                       });
@@ -5649,6 +6015,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones }) {
                               <td onMouseEnter={e=>showTt(item.detail||item.tooltip||"",e)} onMouseMove={moveTt} onMouseLeave={hideTt} style={{ padding:"11px 18px", fontSize:13, color:"#374151", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.detail || item.tooltip || "—"}</td>
                               <td style={{ padding:"11px 18px", fontSize:13, fontWeight:700, color:zone.color, whiteSpace:"nowrap" }}>{fmtVal(item)}</td>
                               <td style={{ padding:"11px 18px", fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>{new Date(item.createdAt || Date.now()).toLocaleDateString("en-GB")}</td>
+                              <td style={{ padding:"6px 10px" }}><ReminderButton item={item} /></td>
                             </tr>
                           );
                         })}
@@ -5857,34 +6224,34 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     return tb - ta;
   });
 
-  // Load from Firestore on mount
+  // real-time sync — מנוי לכל המסמכים המשותפים
+  const fsReceived = React.useRef({});
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [savedProjects, savedAllData, savedSuppliers, savedCompanies, savedMilestones, savedStats, savedWorkScopes] = await Promise.all([
-          loadFromFirestore(uid, "projects"),
-          loadFromFirestore(uid, "allData"),
-          loadFromFirestore(uid, "suppliers"),
-          loadFromFirestore(uid, "companies"),
-          loadFromFirestore(uid, "milestones"),
-          loadFromFirestore(uid, "statsRows"),
-          loadFromFirestore(uid, "workScopes"),
-        ]);
-        // אם אין נתונים ב-Firestore - טען מנתוני migration
-        if (savedProjects)    setProjects(savedProjects);
-        if (savedAllData)     setAllData(savedAllData);
-        if (savedSuppliers)   setSuppliers(migrateSuppliers(savedSuppliers));
-        if (savedCompanies)   setCompanies(savedCompanies);
-        if (savedMilestones)  setMilestones(savedMilestones);
-        if (savedStats)       setStatsRows(savedStats);
-        if (savedWorkScopes)  setWorkScopes(savedWorkScopes);
-      } catch(e) {
-        console.error("שגיאת טעינה:", e);
-        alert("שגיאה בטעינת נתונים: " + e.message);
-      }
-      setDataLoaded(true);
+    let loadedCount = 0;
+    const KEYS = ["projects","allData","suppliers","companies","milestones","statsRows","workScopes","managers"];
+    const setters = {
+      projects:   d => setProjects(d),
+      allData:    d => setAllData(d),
+      suppliers:  d => setSuppliers(migrateSuppliers(d)),
+      companies:  d => setCompanies(d),
+      milestones: d => setMilestones(d),
+      statsRows:  d => setStatsRows(d),
+      workScopes: d => setWorkScopes(d),
+      managers:   d => setManagers(d),
     };
-    loadData();
+    const unsubs = KEYS.map(key => subscribeShared(key, async data => {
+      // migration fallback — אם המסמך המשותף ריק, טען מהמפתח הישן
+      if (data === null && key !== "projects" && key !== "allData") {
+        data = await loadFromFirestore(uid, key);
+      }
+      if (data !== null) {
+        fsReceived.current[key] = true;
+        setters[key](data);
+        setTimeout(() => { fsReceived.current[key] = false; }, 200);
+      }
+      if (loadedCount < KEYS.length) { loadedCount++; if (loadedCount === KEYS.length) setDataLoaded(true); }
+    }));
+    return () => unsubs.forEach(u => u());
   }, [uid]);
 
   const [selectedProj, setSelectedProj] = useState(null);
@@ -5905,21 +6272,25 @@ function AppInner({ currentUser, userRole, setUserRole }) {
 
   // ── Suppliers (global) ──────────────────────────────────────────────────────
   const [suppliers, setSuppliers] = useState([]);
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "suppliers", suppliers); }, [suppliers, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["suppliers"]) saveToFirestore(uid, "suppliers", suppliers); }, [suppliers, dataLoaded]);
 
   // ── Municipal companies (global) ────────────────────────────────────────────
   const [companies, setCompanies] = useState([]);
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "companies", companies); }, [companies, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["companies"]) saveToFirestore(uid, "companies", companies); }, [companies, dataLoaded]);
 
   // ── Milestones per company per profession (global) ──────────────────────────
   // structure: { [companyId]: { [profession]: [ {id,name,pct,planOnly} ] } }
   const [milestones, setMilestones] = useState({});
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "milestones", milestones); }, [milestones, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["milestones"]) saveToFirestore(uid, "milestones", milestones); }, [milestones, dataLoaded]);
 
   // ── Work scopes per field (global) ──────────────────────────────────────────
-  // structure: { [fieldName]: string }
   const [workScopes, setWorkScopes] = useState({});
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "workScopes", workScopes); }, [workScopes, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["workScopes"]) saveToFirestore(uid, "workScopes", workScopes); }, [workScopes, dataLoaded]);
+
+  // ── Managers (global) ────────────────────────────────────────────────────────
+  // { id, name, role: "unit"|"planning"|"execution"|"domain", email, phone }
+  const [managers, setManagers] = useState([]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["managers"]) saveToFirestore(uid, "managers", managers); }, [managers, dataLoaded]);
 
   // ── Statistics (global, persisted separately) ───────────────────────────
   const DEFAULT_STATS = [
@@ -5933,7 +6304,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     { id:8,  field:"פיתוח" },
   ];
   const [statsRows, setStatsRows] = useState(DEFAULT_STATS.map(s => ({ ...s, pct:"" })));
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "statsRows", statsRows); }, [statsRows, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["statsRows"]) saveToFirestore(uid, "statsRows", statsRows); }, [statsRows, dataLoaded]);
 
   const notify = msg => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -5958,8 +6329,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
   }, []);
 
   // Auto-save to Firestore - must be before any early return
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveToFirestore(uid, "allData", allData); }, [allData, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["projects"]) saveToFirestore(uid, "projects", projects); }, [projects, dataLoaded]);
+  useEffect(() => { if (dataLoaded && !fsReceived.current["allData"]) saveToFirestore(uid, "allData", allData); }, [allData, dataLoaded]);
 
   if (!dataLoaded) return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Heebo',sans-serif", color:"#94a3b8", fontSize:16 }}>
@@ -6250,9 +6621,55 @@ function AppInner({ currentUser, userRole, setUserRole }) {
     XLSX.utils.book_append_sheet(wb, budgetWs, "תקציב הפרויקט");
 
     // 6. תוצאות מכרז
-    const tenderRows = [["קבלן","הצעת מחיר","דירוג","הערות","נבחר"]];
-    (d.tender||[]).forEach(r => tenderRows.push([r.contractor||"", r.bid||"", r.rank||"", r.notes||"", r.selected?"כן":"לא"]));
-    XLSX.utils.book_append_sheet(wb, makeSimple(tenderRows, [25,15,10,30,10]), "תוצאות מכרז");
+    const tenderRowsData = [["קבלן","הצעת מחיר","דירוג","הערות","נבחר"]];
+    (d.tender||[]).forEach(r => tenderRowsData.push([r.contractor||"", r.bid||"", r.rank||"", r.notes||"", r.selected?"כן":"לא"]));
+    XLSX.utils.book_append_sheet(wb, makeSimple(tenderRowsData, [25,15,10,30,10]), "תוצאות מכרז");
+
+    // 7. חשבון קבלן סופי
+    (() => {
+      const cEst = Number(String(o.contractorEst||"").replace(/,/g,"")) || 0;
+      const devPct = (statsRows||[]).filter(r=>(r.field||"").includes("פיתוח")||(r.field||"").includes("נוף")).reduce((s,r)=>s+Number(r.pct||0),0);
+      const archBaseManualC = Number(String(o.archBase||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+      const archBase = archBaseManualC > 0 ? archBaseManualC : cEst - cEst * devPct / 100;
+      const contractorSaved = d.contractor || [];
+      const tRows = d.tender || [];
+      const fmt = n => { const v=Number(n); return (!n&&n!==0)||isNaN(v)?"—":v.toLocaleString("he-IL"); };
+      const conRows = [["תחום","שם יועץ","% שכ\"ט","שכ\"ט ראשוני","בסיס מכרז","שכ\"ט מכרז","חשבון סופי","תאריך","הפרש"]];
+      (d.quotes||[]).forEach(field => {
+        (field.consultants||[]).filter(c=>c.approved&&c.name?.trim()&&(c.payType||"אחוזים")==="אחוזים").forEach(c => {
+          const feePct  = Number(c.value||0);
+          const isArch  = ["אדריכל","אדריכלות","אדריכלים"].includes((field.fieldName||"").trim());
+          const isPM    = (field.fieldName||"").includes("מנהל פרויקט");
+          let sectionEst = 0;
+          if (isArch && cEst)      sectionEst = archBase;
+          else if (isPM && cEst)   sectionEst = cEst;
+          else if (cEst) { const pp=Number((statsRows||[]).find(r=>r.field===field.fieldName)?.pct||0)/100; sectionEst=cEst*pp; }
+          const initialFee = sectionEst ? sectionEst * feePct / 100 : null;
+          const key = (field.fieldName||"")+"__"+(c.name.trim());
+          const tSaved = tRows.find(r=>r.key===key)||{};
+          const tBase = Number(tSaved.doc2||0) || Number(tSaved.doc1||0);
+          const tenderFee = tBase ? tBase * feePct/100 : null;
+          const cSaved = contractorSaved.find(r=>r.key===key)||{};
+          const finalAmt = cSaved.finalAmt !== undefined ? Number(cSaved.finalAmt||0) : null;
+          const diff = (finalAmt !== null && tenderFee !== null) ? finalAmt - tenderFee : null;
+          conRows.push([
+            field.fieldName||"", c.name.trim(), feePct+"%",
+            initialFee !== null ? initialFee : "—",
+            tBase || "—",
+            tenderFee !== null ? tenderFee : "—",
+            finalAmt !== null ? finalAmt : "—",
+            cSaved.date||"",
+            diff !== null ? diff : "—",
+          ]);
+        });
+      });
+      const metaC = contractorSaved.find(r=>r.key==="__meta__")||{};
+      if (metaC.finalBoq || metaC.finalAccount) {
+        conRows.push([]);
+        conRows.push(["חשבון קבלן סופי (כולל)","","","","","",metaC.finalAccount||"","",""]);
+      }
+      XLSX.utils.book_append_sheet(wb, makeSimple(conRows, [18,22,10,16,16,16,16,14,14]), "חשבון קבלן סופי");
+    })();
 
     const wbout = XLSX.write(wb, { bookType:"xlsx", type:"array" });
     const blob = new Blob([wbout], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -6423,8 +6840,8 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             { label:"פרויקטים",           icon:"📁", action:()=>{ setSelectedProj(null); setGlobalPage(null); setShowStats(false); },          active: !selectedProj && !globalPage && !showStats, big:true },
             { label:"מידע ראשי",          icon:"📋", action:()=>{ setGlobalPage("maininfo"); setSelectedProj(null); setShowStats(false); },   active: globalPage==="maininfo" },
             { label:"רשימת ספקים",        icon:"🗂️", action:()=>{ setGlobalPage("suppliers"); setSelectedProj(null); setShowStats(false); },  active: globalPage==="suppliers" },
-            { label:"תכולות עבודה",       icon:"📝", action:()=>{ setGlobalPage("workscopes"); setSelectedProj(null); setShowStats(false); }, active: globalPage==="workscopes" },
             { label:"חברות עירוניות",     icon:"🏛️", action:()=>{ setGlobalPage("companies"); setSelectedProj(null); setShowStats(false); },  active: globalPage==="companies" },
+            { label:"מנהלים",             icon:"👔", action:()=>{ setGlobalPage("managers"); setSelectedProj(null); setShowStats(false); },   active: globalPage==="managers" },
             { label:"תבניות אבני דרך",    icon:"🚩", action:()=>{ setGlobalPage("milestones"); setSelectedProj(null); setShowStats(false); }, active: globalPage==="milestones" },
             { label:"גיליון סטטיסטיקה",   icon:"📈", action:()=>{ setShowStats(true); setSelectedProj(null); setGlobalPage(null); },          active: showStats },
             { label:"השוואת עלויות",      icon:"⚖️", action:()=>{ setGlobalPage("costs"); setSelectedProj(null); setShowStats(false); },       active: globalPage==="costs" },
@@ -6521,6 +6938,19 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             allData={allData}
             projects={visibleProjects}
             milestones={milestones}
+            onMarkEmailSent={item => {
+              const now = Date.now();
+              setAllData(prev => {
+                const pd = prev[item.projId] || {};
+                if (item.stage === "pm" && item.invoiceId)
+                  return { ...prev, [item.projId]: { ...pd, accounts: (pd.accounts||[]).map(r => r.id===item.invoiceId ? {...r, pmLastEmailAt:now} : r) } };
+                if (item.stage === "um" && item.invoiceId)
+                  return { ...prev, [item.projId]: { ...pd, accounts: (pd.accounts||[]).map(r => r.id===item.invoiceId ? {...r, umLastEmailAt:now} : r) } };
+                if (item.stage === "recommendation" && item.fieldId)
+                  return { ...prev, [item.projId]: { ...pd, quotes: (pd.quotes||[]).map(f => f.id===item.fieldId ? {...f, recommendLastEmailAt:now} : f) } };
+                return prev;
+              });
+            }}
             onNavigate={(projId, tab, fieldId, consultantId, increaseId, invoiceId) => {
               const proj = visibleProjects.find(p => p.id === projId);
               if (proj) {
@@ -6549,12 +6979,14 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             professions={[...new Set([...statsRows.map(r => r.field), ...suppliers.map(s=>s.field).filter(Boolean)])]}
           />
         )}
-        {!selectedProj && globalPage === "workscopes" && (
-          <WorkScopesPage workScopes={workScopes} setWorkScopes={setWorkScopes} suppliers={suppliers} companies={companies} />
-        )}
         {!selectedProj && globalPage === "companies" && (
           <CompaniesPage
             companies={companies} setCompanies={setCompanies}
+          />
+        )}
+        {!selectedProj && globalPage === "managers" && (
+          <ManagersPage
+            managers={managers} setManagers={setManagers}
           />
         )}
         {!selectedProj && globalPage === "milestones" && (
@@ -6673,10 +7105,19 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 ...prev,
                 [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), companyId: cid }
               }));
-              const projPlanningMgr   = allData[selectedProj.id]?.planningManager || "";
-              const projExecutionMgr  = allData[selectedProj.id]?.executionManager || "";
-              const setPlanningMgr    = v => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), planningManager: v } }));
-              const setExecutionMgr   = v => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), executionManager: v } }));
+              const projPlanningMgrId  = allData[selectedProj.id]?.planningManagerId  || "";
+              const projExecutionMgrId = allData[selectedProj.id]?.executionManagerId || "";
+              const projUnitMgrId      = allData[selectedProj.id]?.unitManagerId      || "";
+              const projDomainMgrId    = allData[selectedProj.id]?.domainManagerId    || "";
+              const projTendersMgrId   = allData[selectedProj.id]?.tendersManagerId   || "";
+              const setMgrField = (fields) => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), ...fields } }));
+              const planningMgrs  = managers.filter(m => m.role === "planning");
+              const executionMgrs = managers.filter(m => m.role === "execution");
+              const unitMgrs      = managers.filter(m => m.role === "unit");
+              const domainMgrs    = managers.filter(m => m.role === "domain");
+              const tendersMgrs   = managers.filter(m => m.role === "tenders");
+              const mgr = id => managers.find(m => String(m.id) === String(id));
+              const mgrSelectStyle = { padding:"4px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, fontFamily:"'Heebo',sans-serif", background:"#f8fafc", color:"#1e293b", outline:"none", cursor:isAdmin?"pointer":"default", maxWidth:145, direction:"rtl" };
               return (
                 <div style={{ background:"#fff", borderBottom:"1px solid #e2e8f0", direction:"rtl" }}>
                   {/* שם פרויקט — שורה עליונה */}
@@ -6719,16 +7160,44 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                   </select>
                   <div style={{ width:1, height:22, background:"#e2e8f0" }} />
                   {/* מנהל תכנון */}
-                  <input value={projPlanningMgr} onChange={isAdmin?e=>setPlanningMgr(e.target.value):undefined}
-                    readOnly={!isAdmin} placeholder="מנהל תכנון"
-                    style={{ padding:"4px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#f8fafc", color:"#1e293b", width:120, textAlign:"right", direction:"rtl", cursor:isAdmin?"text":"default" }}
-                    onFocus={isAdmin?e=>e.target.style.borderColor="#475569":undefined} onBlur={isAdmin?e=>e.target.style.borderColor="#e2e8f0":undefined} />
+                  <select value={projPlanningMgrId} disabled={!isAdmin}
+                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ planningManagerId:e.target.value, planningManager:m?.name||"", planningManagerEmail:m?.email||"" }); }:undefined}
+                    style={mgrSelectStyle}>
+                    <option value="">מנהל תכנון</option>
+                    {planningMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
                   <div style={{ width:1, height:22, background:"#e2e8f0" }} />
                   {/* מנהל ביצוע */}
-                  <input value={projExecutionMgr} onChange={isAdmin?e=>setExecutionMgr(e.target.value):undefined}
-                    readOnly={!isAdmin} placeholder="מנהל ביצוע"
-                    style={{ padding:"4px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#f8fafc", color:"#1e293b", width:120, textAlign:"right", direction:"rtl", cursor:isAdmin?"text":"default" }}
-                    onFocus={isAdmin?e=>e.target.style.borderColor="#475569":undefined} onBlur={isAdmin?e=>e.target.style.borderColor="#e2e8f0":undefined} />
+                  <select value={projExecutionMgrId} disabled={!isAdmin}
+                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ executionManagerId:e.target.value, executionManager:m?.name||"", executionManagerEmail:m?.email||"" }); }:undefined}
+                    style={mgrSelectStyle}>
+                    <option value="">מנהל ביצוע</option>
+                    {executionMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <div style={{ width:1, height:22, background:"#e2e8f0" }} />
+                  {/* מנהל יחידה */}
+                  <select value={projUnitMgrId} disabled={!isAdmin}
+                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ unitManagerId:e.target.value, unitManager:m?.name||"", unitManagerEmail:m?.email||"" }); }:undefined}
+                    style={mgrSelectStyle}>
+                    <option value="">מנהל יחידה</option>
+                    {unitMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <div style={{ width:1, height:22, background:"#e2e8f0" }} />
+                  {/* מנהל תחום */}
+                  <select value={projDomainMgrId} disabled={!isAdmin}
+                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ domainManagerId:e.target.value, domainManager:m?.name||"", domainManagerEmail:m?.email||"" }); }:undefined}
+                    style={mgrSelectStyle}>
+                    <option value="">מנהל תחום</option>
+                    {domainMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <div style={{ width:1, height:22, background:"#e2e8f0" }} />
+                  {/* מנהל מכרזים */}
+                  <select value={projTendersMgrId} disabled={!isAdmin}
+                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ tendersManagerId:e.target.value, tendersManager:m?.name||"", tendersManagerEmail:m?.email||"" }); }:undefined}
+                    style={mgrSelectStyle}>
+                    <option value="">מנהל מכרזים</option>
+                    {tendersMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
                   <div style={{ width:1, height:22, background:"#e2e8f0" }} />
                   {/* ייצוא */}
                   <button onClick={() => exportProjectToExcel(selectedProj)} className="allow-readonly"
@@ -6785,9 +7254,10 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 quotesRows={getData(selectedProj.id,"quotes")}
                 suppliers={suppliers}
               />}
-              {activeTab === "quotes"      && <QuotesTab      rows={getData(selectedProj.id,"quotes")}      setRows={makeTabSetter(selectedProj.id,"quotes")} highlightFieldId={highlightFieldId} suppliers={suppliers} budgetState={allData[selectedProj.id]?.budgetState||{}} openingData={allData[selectedProj.id]?.openingData||{}} statsRows={statsRows} projectName={selectedProj.name||""} projectNumber={allData[selectedProj.id]?.projectNumber||""} companyName={companies.find(c=>String(c.id)===String(allData[selectedProj.id]?.companyId))?.name||""} companyId={String(allData[selectedProj.id]?.companyId||"")} workScopes={workScopes} />}
-              {activeTab === "consultants" && <ConsultantsTab rows={getData(selectedProj.id,"consultants")} setRows={makeTabSetter(selectedProj.id,"consultants")} quotesRows={getData(selectedProj.id,"quotes")} budgetState={allData[selectedProj.id]?.budgetState||{}} statsRows={statsRows} openConsultantId={openConsultantId} scrollToIncreaseId={scrollToIncreaseId} suppliers={suppliers} projectName={selectedProj.name} openingData={allData[selectedProj.id]?.openingData||{}} setOpeningData={od => setAllData(prev => ({...prev, [selectedProj.id]: {...(prev[selectedProj.id]||makeProjectData()), openingData: od}}))} />}
+              {activeTab === "quotes"      && <QuotesTab      rows={getData(selectedProj.id,"quotes")}      setRows={makeTabSetter(selectedProj.id,"quotes")} highlightFieldId={highlightFieldId} suppliers={suppliers} budgetState={allData[selectedProj.id]?.budgetState||{}} openingData={allData[selectedProj.id]?.openingData||{}} statsRows={statsRows} projectName={selectedProj.name||""} projectNumber={allData[selectedProj.id]?.projectNumber||""} companyName={companies.find(c=>String(c.id)===String(allData[selectedProj.id]?.companyId))?.name||""} companyId={String(allData[selectedProj.id]?.companyId||"")} workScopes={workScopes} projectMeta={{ id:selectedProj.id, name:selectedProj.name, status:selectedProj.status, domainManager:allData[selectedProj.id]?.domainManager||"", domainManagerEmail:allData[selectedProj.id]?.domainManagerEmail||"", tendersManager:allData[selectedProj.id]?.tendersManager||"", tendersManagerEmail:allData[selectedProj.id]?.tendersManagerEmail||"" }} />}
+              {activeTab === "consultants" && <ConsultantsTab rows={getData(selectedProj.id,"consultants")} setRows={makeTabSetter(selectedProj.id,"consultants")} quotesRows={getData(selectedProj.id,"quotes")} budgetState={allData[selectedProj.id]?.budgetState||{}} statsRows={statsRows} openConsultantId={openConsultantId} scrollToIncreaseId={scrollToIncreaseId} suppliers={suppliers} projectName={selectedProj.name} openingData={allData[selectedProj.id]?.openingData||{}} setOpeningData={od => setAllData(prev => ({...prev, [selectedProj.id]: {...(prev[selectedProj.id]||makeProjectData()), openingData: od}}))} projectMeta={{ id:selectedProj.id, name:selectedProj.name, status:selectedProj.status, unitManager:allData[selectedProj.id]?.unitManager||"", unitManagerEmail:allData[selectedProj.id]?.unitManagerEmail||"" }} />}
               {activeTab === "accounts"    && <AccountsTab    rows={getData(selectedProj.id,"accounts")}    setRows={makeTabSetter(selectedProj.id,"accounts")} quotesRows={getData(selectedProj.id,"quotes")} consultantsRows={getData(selectedProj.id,"consultants")} setConsultantsRows={makeTabSetter(selectedProj.id,"consultants")} budgetState={allData[selectedProj.id]?.budgetState||{}} statsRows={statsRows} companyId={allData[selectedProj.id]?.companyId||""} milestones={milestones} openInvoiceId={openInvoiceId} openingData={allData[selectedProj.id]?.openingData||{}} localMilestones={allData[selectedProj.id]?.localMilestones||{}} setLocalMilestones={val=>setAllData(prev=>({...prev,[selectedProj.id]:{...(prev[selectedProj.id]||makeProjectData()),localMilestones:val}}))}
+                projectMeta={{ id:selectedProj.id, name:selectedProj.name, status:selectedProj.status, planningManager:allData[selectedProj.id]?.planningManager||"", planningManagerEmail:allData[selectedProj.id]?.planningManagerEmail||"", executionManager:allData[selectedProj.id]?.executionManager||"", executionManagerEmail:allData[selectedProj.id]?.executionManagerEmail||"", unitManager:allData[selectedProj.id]?.unitManager||"", unitManagerEmail:allData[selectedProj.id]?.unitManagerEmail||"" }}
                 onNavigate={(tab, consultantId) => {
                   setActiveTab(tab);
                   setOpenConsultantId(consultantId);
