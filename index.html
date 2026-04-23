@@ -1641,25 +1641,36 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
   };
   const delIncrease    = id  => saveIncreases(increases.filter(x => x.id !== id));
   const updateIncrease = (id, key, val) => {
-    saveIncreases(increases.map(x => x.id === id ? { ...x, [key]: val } : x));
-    if (key === "sentToManager" && val && projectMeta?.unitManagerEmail) {
-      const increase = increases.find(x => x.id === id);
+    const updatedIncreases = increases.map(x => x.id === id ? { ...x, [key]: val } : x);
+    saveIncreases(updatedIncreases);
+    if (key === "sentToManager" && val && projectMeta) {
+      const increase = updatedIncreases.find(x => x.id === id);
       if (increase) {
-        const approvedInc = increases.filter(x => x.approvedIncrease).reduce((s,x) => s + Number(x.amount||0), 0);
-        const newTotal = Number(consultant.contractFee||0) + approvedInc + Number(increase.amount||0);
-        const subject = `CostPilot — בקשת הגדלה ממתינה לאישורך — ${projectMeta.name || ""}`;
-        const details = `פרויקט: ${projectMeta.name || ""}\nיועץ: ${consultant.name || ""}\nסכום התקשרות קיים: ${fmt(consultant.contractFee||0)}\nסיבת ההגדלה: ${increase.reason || "—"}\nסכום ההגדלה: ${fmt(increase.amount)}\nסכום כולל חדש: ${fmt(newTotal)}`;
-        const body = `שלום ${projectMeta.unitManager || ""},\n\nבקשת הגדלה ממתינה לאישורך כמנהל יחידה.\n\n${details}\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+        const incStatus = (x) =>
+          x.approvedIncrease     ? "אושר"
+          : x.sentToMunicipality ? "הועבר לחברה העירונית"
+          : x.sentToManager      ? "הועבר לאישור מנהל"
+          : "ממתין";
+        const currentFee = (isArchitect && archCalc?.archFee) || (isPM && pmCalc?.pmFee) || (isOtherPct && otherCalc?.conFee) || 0;
+        const effectiveContractFee = consultant.contractFee || consultant._liveFee || currentFee;
+        const approvedInc = updatedIncreases.filter(x => x.approvedIncrease).reduce((s,x) => s + Number(x.amount||0), 0);
+        const newTotal = effectiveContractFee + approvedInc + Number(increase.amount||0);
+        const subject = `הגדלה ממתינה לאישור — ${consultant.name||""} — ${projectMeta.name||""}`;
+        const otherLines = updatedIncreases.map(x =>
+          `${x.reason||"—"} | ${fmt(x.amount)} | ${x.date ? fmtDate(x.date) : "—"} | ${incStatus(x)}`
+        ).join("\n");
+        const body = `שלום ${projectMeta.unitManager||""},\n\nבקשת הגדלה עבור יועץ "${consultant.name||""}" בפרויקט "${projectMeta.name||""}" ממתינה לאישורך כמנהל יחידה.\n\nמסגרת התקשרות קיימת: ${fmt(effectiveContractFee)}\nסכום כולל מוצע: ${fmt(newTotal)}\n\nפרטי ההגדלה:\nסיבה: ${increase.reason||"—"}\nסכום: ${fmt(increase.amount)}\nתאריך: ${increase.date ? fmtDate(increase.date) : "—"}\n\nכל ההגדלות:\n${otherLines}\n\nאנא היכנסו למערכת ואשרו.\n\nבברכה`;
+        const tableRows = [
+          ["מסגרת התקשרות קיימת", fmt(effectiveContractFee), "—", "בתוקף"],
+          ...updatedIncreases.map(x => [x.reason||"—", fmt(x.amount), x.date ? fmtDate(x.date) : "—", incStatus(x)])
+        ];
+        const rowHighlights = [false, ...updatedIncreases.map(x => x.id === id)];
         const htmlBody = buildEmailHtml(
-          `שלום ${projectMeta.unitManager || ""},\n\nבקשת הגדלה עבור יועץ "${consultant.name || ""}" בפרויקט "${projectMeta.name || ""}" ממתינה לאישורך כמנהל יחידה.`,
-          ["פרט", "סכום"],
-          [
-            ["סכום התקשרות קיים", fmt(consultant.contractFee||0)],
-            ["סיבת ההגדלה", increase.reason || "—"],
-            ["סכום ההגדלה", fmt(increase.amount)],
-            ["סכום כולל חדש", fmt(newTotal)]
-          ],
-          "אנא היכנסו למערכת ואשרו את ההגדלה.\n\nבברכה,\nמערכת CostPilot"
+          `שלום ${projectMeta.unitManager||""},\n\nבקשת הגדלה עבור יועץ "${consultant.name||""}" בפרויקט "${projectMeta.name||""}" ממתינה לאישורך כמנהל יחידה.\n\nסכום כולל מוצע: ${fmt(newTotal)}`,
+          ["פרט", "סכום", "תאריך", "סטטוס"],
+          tableRows,
+          "אנא היכנסו למערכת ואשרו את ההגדלה.\n\nבברכה,\nמערכת CostPilot",
+          rowHighlights
         );
         setApprovalModal({ toEmail: projectMeta.unitManagerEmail, toName: projectMeta.unitManager, subject, body, htmlBody });
       }
@@ -2039,7 +2050,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
           {/* סה"כ הגדלות */}
           {totalInc !== 0 && (
             <div style={{ padding:"11px 16px", background:"#f8fafc", borderRadius:10, border:"1px solid #e2e8f0", display:"grid", gridTemplateColumns:"230px 1fr", alignItems:"center" }}>
-              <span style={{ fontWeight:700, fontSize:13, color: totalInc < 0 ? "#dc2626" : "#374151", flex:1, textAlign:"right" }}>סה״כ הגדלות {totalInc < 0 ? "(הפחתה)" : ""}</span>
+              <span style={{ fontWeight:700, fontSize:13, color: totalInc < 0 ? "#dc2626" : "#374151", flex:1, textAlign:"right" }}>סה״כ הגדלות</span>
               <span style={{ fontWeight:800, fontSize:16, color: totalInc < 0 ? "#dc2626" : "#1e293b", minWidth:120, flexShrink:0, textAlign:"right" }}>{fmt(totalInc)}</span>
             </div>
           )}
@@ -2099,13 +2110,28 @@ function ConsultantsTab({ rows, setRows, quotesRows, budgetState, statsRows, ope
     if (openConsultantId) setOpenId(openConsultantId);
   }, [openConsultantId]);
 
-  // Always enrich consultant with live value/payType from quotes
+  // Always enrich consultant with live value/payType/fee from quotes
   const enrich = (consultant) => {
     if (!quotesRows) return consultant;
     for (const fg of quotesRows) {
       for (const c of (fg.consultants || [])) {
         if ("q-"+c.id === consultant.id) {
-          return { ...consultant, value: c.value, payType: c.payType || "אחוזים" };
+          // Compute live fee exactly like AccountsTab so contractFee email is always accurate
+          const cEst = Number(String((openingData||{}).contractorEst||"").replace(/,/g,"").replace(/[^\d.]/g,"")) || Number((budgetState||{}).contractorEst || 0);
+          const dPct = (statsRows||[]).filter(r=>(r.field||"").includes("פיתוח")||(r.field||"").includes("נוף")).reduce((s,r)=>s+Number(r.pct||0),0);
+          const archBaseManual = Number(String((openingData||{}).archBase||"").replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
+          const aBase = archBaseManual > 0 ? archBaseManual : cEst - cEst * dPct / 100;
+          const isPct = (c.payType||"אחוזים") === "אחוזים";
+          const isArch = isPct && ["אדריכל","אדריכלות","אדריכלים"].includes((fg.fieldName||"").trim());
+          const isPMRole = isPct && (fg.fieldName||"").includes("מנהל פרויקט");
+          const pct = Number(c.value||0) / 100;
+          let liveFee = 0;
+          if (c.subItems?.length > 0) liveFee = c.subItems.reduce((s,it)=>s+Number(it.amount||0),0);
+          else if (!isPct) liveFee = Number(c.value||0);
+          else if (isArch && cEst) liveFee = aBase * pct;
+          else if (isPMRole && cEst) liveFee = cEst * pct;
+          else if (cEst) { const pp = Number((statsRows||[]).find(r=>r.field===fg.fieldName)?.pct||0)/100; liveFee = cEst * pp * pct; }
+          return { ...consultant, value: c.value, payType: c.payType || "אחוזים", _liveFee: liveFee };
         }
       }
     }
@@ -2655,33 +2681,38 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
 
   const rowTotal = key => getInvoices(key).filter(r => r.unitManagerApproved && !r.rejected).reduce((s,r)=>s+Number(r.amount||0),0);
 
-  // ── Negative increases: recalculate unpaid milestones based on new total fee ─
-  // negativeDeductions: { milestoneKey → amount to deduct from original baseAmt }
-  const negativeDeductions = React.useMemo(() => {
+  // ── milestoneAllocation: הקצאה כרונולוגית של יתרת האומדן לאבני דרך ─────────
+  // פעיל רק כשיש הקטנת אומדן (totalFee < contractFee)
+  // מחזיר { milestoneKey → { baseAmt, isOverpaid, isComplete } }
+  const milestoneAllocation = React.useMemo(() => {
     if (!sel || fieldMilestones.length === 0) return {};
-    const negTotal = (sel.increases||[])
-      .filter(x => x.approvedIncrease && Number(x.amount||0) < 0)
-      .reduce((s,x) => s + Math.abs(Number(x.amount)), 0);
-    if (negTotal === 0) return {};
+    if (sel.totalFee >= sel.contractFee) return {}; // אין הקטנה — אין שינוי
 
-    // New total fee after deduction
-    const newFee = sel.contractFee - negTotal;
-    // Already paid (milestones only)
-    const alreadyPaid = fieldMilestones.reduce((s,m) => s + rowTotal("m-"+m.id), 0);
-    // Remaining to pay from new fee
-    const remainingToPay = newFee - alreadyPaid;
+    const newFee = sel.totalFee;
+    const totalPaid = fieldMilestones.reduce((s,m) => s + rowTotal("m-"+m.id), 0);
+    let remaining = Math.max(0, newFee - totalPaid);
 
-    const deductions = {};
+    const result = {};
     fieldMilestones.forEach(m => {
       const key = "m-" + m.id;
-      const origAmt = sel.contractFee * Number(m.pct||0) / 100;
       const paid = rowTotal(key);
-      if (paid >= origAmt) return; // already fully paid - no change
-      // New amount for this milestone = remainingToPay × (m.pct / 100)
-      const newAmt = remainingToPay * Number(m.pct||0) / 100;
-      deductions[key] = origAmt - newAmt; // how much to subtract from display
+      const maxAmt = Math.max(0, newFee * Number(m.pct||0) / 100);
+
+      if (paid > maxAmt) {
+        // יתר תשלום — נעול + אזהרה; העודף נספג ב-remaining דרך totalPaid
+        result[key] = { baseAmt: maxAmt, isOverpaid: true, isComplete: false };
+      } else if (paid === maxAmt) {
+        // שולם במדויק — נעול ומושלם
+        result[key] = { baseAmt: maxAmt, isOverpaid: false, isComplete: true };
+      } else {
+        // פתוח — הקצה לפי הסדר מהיתרה
+        const additionalNeeded = maxAmt - paid;
+        const actualAdditional = Math.min(remaining, additionalNeeded);
+        result[key] = { baseAmt: paid + actualAdditional, isOverpaid: false, isComplete: false };
+        remaining = Math.max(0, remaining - actualAdditional);
+      }
     });
-    return deductions;
+    return result;
   }, [sel, fieldMilestones, rows]);
 
   const paidMilestoneTotal = sel ? fieldMilestones.reduce((s,m)=>s+rowTotal("m-"+m.id),0) : 0;
@@ -2695,8 +2726,9 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
     const totalPaid = items.reduce((s,m)=>s+rowTotal(keyPrefix?keyPrefix+m.id:(isIncrease?"i-":"m-")+m.id),0);
     const totalBase = items.reduce((s,m)=>{
       const key = keyPrefix?keyPrefix+m.id:(isIncrease?"i-":"m-")+m.id;
-      const raw = (isIncrease||keyPrefix) ? Number(m.amount||0) : sel.fee*Number(m.pct||0)/100;
-      return s + raw - ((!isIncrease && negativeDeductions[key]) || 0);
+      const raw = (isIncrease||keyPrefix) ? Number(m.amount||0) : sel.contractFee*Number(m.pct||0)/100;
+      const alloc = (!isIncrease && milestoneAllocation[key]);
+      return s + (alloc ? alloc.baseAmt : raw);
     },0);
     return (
       <div style={{ overflowX:"auto" }}>
@@ -2725,8 +2757,10 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
             {items.map((m,i) => {
               const key     = keyPrefix?keyPrefix+m.id:(isIncrease?"i-":"m-")+m.id;
               const rawAmt  = (isIncrease||keyPrefix) ? Number(m.amount||0) : sel.contractFee * Number(m.pct||0) / 100;
-              const deduct  = (!isIncrease && negativeDeductions[key]) || 0;
-              const baseAmt = rawAmt - deduct;
+              const alloc   = !isIncrease && milestoneAllocation[key];
+              const baseAmt = alloc ? alloc.baseAmt : rawAmt;
+              const isOverpaid = !!(alloc?.isOverpaid);
+              const isMilestoneLocked = !!(alloc?.isComplete || alloc?.isOverpaid);
               const paid    = rowTotal(key);
               const paidPct = baseAmt ? (paid/baseAmt*100).toFixed(1) : "0";
               const isOpen  = expanded[key];
@@ -2743,7 +2777,10 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                     <td style={{ padding:"10px 14px", textAlign:"right", fontWeight:700, color:"#334155" }}>{isIncrease?100:m.pct}%</td>
                     <td style={{ padding:"10px 14px", textAlign:"right",   fontWeight:700 }}>{fmt(baseAmt)}</td>
                     <td style={{ padding:"10px 14px", textAlign:"right", fontWeight:600, color: Number(paidPct)>0?"#1e293b":"#94a3b8" }}>{paidPct}%</td>
-                    <td style={{ padding:"10px 14px", textAlign:"right",   fontWeight:700, color: paid>0?"#1e293b":"#94a3b8" }}>{fmt(paid)}</td>
+                    <td style={{ padding:"10px 14px", textAlign:"right",   fontWeight:700, color: paid>0?"#1e293b":"#94a3b8" }}>
+                      {fmt(paid)}
+                      {isOverpaid && <span title={`שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")} ₪ עודף`} style={{ marginRight:4, color:"#dc2626", fontSize:10, fontWeight:700 }}>⛔</span>}
+                    </td>
                     <td style={{ padding:"10px 14px", textAlign:"right" }}>
                       {m.planOnly ? <Badge color="#3b82f6">✓</Badge> : <span style={{color:"#e2e8f0"}}>—</span>}
                     </td>
@@ -2827,9 +2864,19 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                               התקבל העדר תביעות — לא ניתן להוסיף חשבונות ליועץ זה
                             </div>
                           )}
+                          {isMilestoneLocked && !sel.noClaims && (
+                            <div style={{ color: isOverpaid?"#dc2626":"#059669", fontSize:12, fontWeight:600, marginBottom:6, textAlign:"right", background: isOverpaid?"#fef2f2":"#f0fdf4", border:`1px solid ${isOverpaid?"#fecaca":"#bbf7d0"}`, borderRadius:6, padding:"6px 10px" }}>
+                              {isOverpaid ? `⛔ שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")} ₪ מעבר לאומדן החדש` : "✓ אבן דרך הושלמה — לא ניתן להוסיף חשבונות"}
+                            </div>
+                          )}
+                          {baseAmt === 0 && paid === 0 && !isIncrease && Object.keys(milestoneAllocation).length > 0 && (
+                            <div style={{ color:"#b45309", fontSize:12, fontWeight:600, marginBottom:6, textAlign:"right", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:6, padding:"6px 10px" }}>
+                              האומדן החדש כוסה במלואו — אין יתרה לאבן דרך זו
+                            </div>
+                          )}
                           <button onClick={(e)=>{e.stopPropagation(); addInvoice(key);}}
-                            disabled={!!sel.noClaims}
-                            style={{ background: sel.noClaims?"#f1f5f9":"#f8fafc", color: sel.noClaims?"#94a3b8":"#334155", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 12px", fontSize:11, cursor: sel.noClaims?"not-allowed":"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, opacity: sel.noClaims?0.6:1 }}>
+                            disabled={!!sel.noClaims || isMilestoneLocked}
+                            style={{ background: (sel.noClaims||isMilestoneLocked)?"#f1f5f9":"#f8fafc", color: (sel.noClaims||isMilestoneLocked)?"#94a3b8":"#334155", border:"1px solid #e2e8f0", borderRadius:6, padding:"4px 12px", fontSize:11, cursor: (sel.noClaims||isMilestoneLocked)?"not-allowed":"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, opacity: (sel.noClaims||isMilestoneLocked)?0.6:1 }}>
                             + הוסף חשבון
                           </button>
                         </div>
@@ -6777,7 +6824,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
       if (tabKey === "consultants") {
         newRows = newRows.map(con => ({
           ...con,
-          increases: (con.increases || []).filter(x => x.reason?.trim() && x.amount !== "" && x.amount !== undefined)
+          increases: (con.increases || []).filter(x => x.approvedIncrease || (x.reason?.trim() && x.amount !== "" && x.amount !== undefined))
         }));
       }
       const updated  = { ...projData, [tabKey]: newRows };
