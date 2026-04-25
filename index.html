@@ -566,21 +566,25 @@ const PROJ_STATUSES = ["תכנון", "פעיל", "הושלם", "מושהה"];
 const fmt = n => {
   const v = Number(n||0);
   const hasDecimal = v !== Math.floor(v);
-  return "₪" + v.toLocaleString("he-IL", {
+  return v.toLocaleString("he-IL", {
     minimumFractionDigits: hasDecimal ? 2 : 0,
     maximumFractionDigits: 2
   });
 };
 const fmtDate = s => { if (!s) return ""; const [y,m,d] = s.split("-"); return d && m && y ? `${d}/${m}/${y}` : s; };
 const toInputDate = s => { if (!s) return ""; if (s.includes("-")) return s; const [d,m,y] = s.split("/"); return y && m && d ? `${y}-${m}-${d}` : s; };
-const statusColor = s => ({ "פעיל": "#0E7C6A", "הושלם": "#0B1F3A", "מושהה": "#9A9A9A" }[s] || "#5C3D10");
+const statusColor = s => ({
+  "תכנון": "#5C3D10", "ביצוע": "#0E7C6A", "נמסר": "#0B1F3A",
+  "הוקפא": "#9A9A9A", "בוטל": "#5C2020",
+  "פעיל": "#0E7C6A", "הושלם": "#0B1F3A", "מושהה": "#9A9A9A"
+}[s] || "#5C3D10");
 
 
 const Card = React.forwardRef(function Card({ children, style, onClick, onMouseOver, onMouseOut, className }, ref) {
   return <div ref={ref} className={className} onClick={onClick} onMouseOver={onMouseOver} onMouseOut={onMouseOut} style={{ background:"#fff", border:"1px solid #E2E5EA", borderRadius:4, boxShadow:"0 1px 3px rgba(0,0,0,0.07)", padding:20, ...style }}>{children}</div>;
 });
 
-function Badge({ children, color }) {
+function Badge({ children, color, noDot }) {
   // Design system badge: support legacy color prop + new variant map
   const variants = {
     "#0E7C6A": { bg:"#EFF7F3", fg:"#1C4532", dot:"#2E7D56" },
@@ -591,9 +595,9 @@ function Badge({ children, color }) {
   };
   const v = variants[color] || { bg:(color||"#9A9A9A")+"1a", fg:color||"#444", dot:color||"#9A9A9A" };
   return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:5, height:20, padding:"0 8px",
-      borderRadius:4, fontSize:11, fontWeight:600, background:v.bg, color:v.fg, whiteSpace:"nowrap" }}>
-      <span style={{ width:6, height:6, borderRadius:"50%", background:v.dot, flexShrink:0 }}/>
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"8px 10px", border:"1.5px solid transparent",
+      borderRadius:4, fontSize:13, fontWeight:600, background:v.bg, color:v.fg, whiteSpace:"nowrap" }}>
+      {!noDot && <span style={{ width:6, height:6, borderRadius:"50%", background:v.dot, flexShrink:0 }}/>}
       {children}
     </span>
   );
@@ -639,8 +643,8 @@ function PrimaryButton({ children, onClick, small=false }) {
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onMouseDown={e => e.currentTarget.style.transform="scale(.98)"}
       onMouseUp={e => e.currentTarget.style.transform="scale(1)"}
-      style={{ background:hover?"#112D52":"#0B1F3A", color:"#fff", border:"none", borderRadius:4,
-        padding:small?"5px 12px":"8px 18px", fontSize:small?12:13, fontWeight:600, cursor:"pointer",
+      style={{ background:hover?"#112D52":"#0B1F3A", color:"#fff", border:"1.5px solid transparent", borderRadius:4,
+        padding:small?"8px 12px":"8px 18px", fontSize:small?13:13, fontWeight:600, cursor:"pointer",
         fontFamily:"'Heebo',sans-serif", whiteSpace:"nowrap", transition:"background 150ms, transform 150ms" }}
     >{children}</button>
   );
@@ -649,7 +653,7 @@ function PrimaryButton({ children, onClick, small=false }) {
 function DeleteButton({ onClick }) {
   return (
     <button onClick={onClick}
-      style={{ background:"#F8EDED", color:"#5C2020", border:"1px solid #F0B8B8", borderRadius:4, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+      style={{ background:"#F8EDED", color:"#5C2020", border:"1.5px solid #F0B8B8", borderRadius:4, padding:"8px 10px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
       מחק
     </button>
   );
@@ -718,7 +722,7 @@ function FieldSearchInput({ availableFields, onSelect, onCancel, noLabel }) {
         {!noLabel && <label style={{ fontSize:12, fontWeight:600, color:"#767676", display:"block", marginBottom:5 }}>בחר תחום מרשימת הספקים</label>}
         <input value={fieldSearch} onChange={e => setFieldSearch(e.target.value)}
           placeholder="הקלד לחיפוש תחום..." autoFocus
-          style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #163356", borderRadius:4, fontSize:13,
+          style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13,
             fontFamily:"'Heebo',sans-serif", outline:"none", background:"#fff", direction:"rtl", boxSizing:"border-box" }} />
         {showList && (
           <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#fff", border:"1.5px solid #E2E5EA",
@@ -738,7 +742,7 @@ function FieldSearchInput({ availableFields, onSelect, onCancel, noLabel }) {
       <div style={{ display:"flex", gap:8, marginTop:22 }}>
         {!noLabel && <PrimaryButton onClick={() => { if(fieldSearch.trim()) onSelect(fieldSearch.trim()); }}>הוסף</PrimaryButton>}
         <button onClick={onCancel}
-          style={{ background:"#F0F2F5", border:"none", borderRadius:4, padding:"9px 16px", fontSize:14, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+          style={{ background:"#F0F2F5", border:"1.5px solid transparent", borderRadius:4, padding:"8px 16px", fontSize:14, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
           ביטול
         </button>
       </div>
@@ -938,7 +942,7 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
       const rowHighlights = allC.map(c => c.id === newlyRec.id);
       const htmlBody = buildEmailHtml(
         `שלום ${projectMeta.tendersManager || ""},\n\nיועץ "${newlyRec.name}" נבחר כמומלץ עבור תחום "${field.fieldName}" בפרויקט "${projectMeta.name}".\n\nלהלן כל הצעות המחיר:`,
-        ["יועץ", "סוג תשלום", "ערך", "סכום (₪)", "הערות"],
+        ["יועץ", "סוג תשלום", "ערך", "סכום ", "הערות"],
         tableRows.length > 0 ? tableRows : [["—","","","",""]],
         "יש להעביר את ההמלצה למזמין לאישור.\n\nבברכה,\nמערכת CostPilot",
         rowHighlights
@@ -985,7 +989,7 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
         const body = `שלום ${projectMeta.domainManager || ""},\n\nתחום "${field.fieldName}" בפרויקט "${projectMeta.name}" מוכן לבחירת יועץ מומלץ.\n\nיועצים: ${consultants.map(c=>c.name).join(", ")}\n\nאנא היכנסו למערכת ובחרו יועץ מומלץ.\n\nבברכה`;
         const htmlBody = buildEmailHtml(
           `שלום ${projectMeta.domainManager || ""},\n\nתחום "${field.fieldName}" בפרויקט "${projectMeta.name}" מוכן לבחירת יועץ מומלץ.\n\nלהלן הצעות היועצים:`,
-          ["יועץ", "סוג תשלום", "ערך", "סכום (₪)", "הערות"],
+          ["יועץ", "סוג תשלום", "ערך", "סכום ", "הערות"],
           tableRows.length > 0 ? tableRows : [["אין יועצים","","","",""]],
           "אנא היכנסו למערכת ובחרו יועץ מומלץ.\n\nבברכה,\nמערכת CostPilot"
         );
@@ -1014,7 +1018,7 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
         <input
           type="text" value={search} onChange={e=>setSearch(e.target.value)}
           placeholder="חיפוש חופשי — שם יועץ, תחום..."
-          style={{ width:"100%", padding:"8px 14px", border:"1.5px solid #E2E5EA", borderRadius:10, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#F7F8FA", color:"#0D0D0D", direction:"rtl", boxSizing:"border-box" }}
+          style={{ width:"100%", padding:"8px 14px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#F7F8FA", color:"#0D0D0D", direction:"rtl", boxSizing:"border-box" }}
         />
       )}
 
@@ -1132,7 +1136,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
       `תאריך סיום: ${fmtDate(d.endDate) || "—"}`,
       `שטח החלקה: ${d.plotArea ? d.plotArea + ' מ"ר' : "—"}`,
       `שטח המבנה: ${d.buildingArea ? d.buildingArea + ' מ"ר' : "—"}`,
-      `אומדן קבלני: ${fmtNum(d.contractorEst) ? fmtNum(d.contractorEst) + " ₪" : "—"}`,
+      `אומדן קבלני: ${fmtNum(d.contractorEst) ? fmtNum(d.contractorEst) + " " : "—"}`,
       `כמות מעליות: ${val(d.elevators)}`,
       `כמות עצים: ${val(d.trees)}`,
       `שימוש ב-BIM: ${d.bim === false ? "לא" : "כן"}`,
@@ -1170,7 +1174,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
         <div style="border-top:2px solid #0D0D0D;padding-top:20px">
           <div style="font-weight:700;font-size:15px;margin-bottom:14px">בקשה להגשת הצעת מחיר</div>
           <div style="margin-bottom:10px">שם החברה / היועץ: <span style="display:inline-block;border-bottom:1px solid #000;min-width:220px;padding:0 6px">${escapedConsultant || "&nbsp;"}</span></div>
-          <div style="margin-bottom:10px">סכום הצעת המחיר: <span style="display:inline-block;border-bottom:1px solid #000;min-width:180px">&nbsp;</span> ₪ (כולל מע&quot;מ)</div>
+          <div style="margin-bottom:10px">סכום הצעת המחיר: <span style="display:inline-block;border-bottom:1px solid #000;min-width:180px">&nbsp;</span>  (כולל מע&quot;מ)</div>
           <div style="margin-bottom:10px">תאריך הגשה: <span style="display:inline-block;border-bottom:1px solid #000;min-width:160px">&nbsp;</span></div>
           <div style="margin-bottom:10px">חתימה: <span style="display:inline-block;border-bottom:1px solid #000;min-width:200px">&nbsp;</span></div>
         </div>`;
@@ -1240,30 +1244,25 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
               <input value={tempName} onChange={e => setTempName(e.target.value)}
                 onKeyDown={e => e.key==="Enter" && saveName()}
                 style={{ fontSize:15, fontWeight:700, color:"#0D0D0D", border:"1.5px solid #0B1F3A", borderRadius:4, padding:"4px 10px", fontFamily:"'Heebo',sans-serif", outline:"none" }} autoFocus />
-              <button onClick={saveName} style={{ background:"#0B1F3A", color:"#fff", border:"none", borderRadius:4, padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>שמור</button>
+              <button onClick={saveName} style={{ background:"#0B1F3A", color:"#fff", border:"1.5px solid transparent", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>שמור</button>
             </div>
           ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ fontSize:16, fontWeight:800, color:"#0D0D0D" }}>{field.fieldName}</span>
-              <button onClick={() => setEditingName(true)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9A9A9A", fontSize:14, padding:"2px 6px" }}>✏️</button>
-            </div>
+            <span onClick={() => setEditingName(true)} style={{ fontSize:16, fontWeight:800, color:"#0D0D0D", cursor:"pointer" }}>{field.fieldName}</span>
           )}
-          {approvedCount > 0 && <Badge color="#0E7C6A">{approvedCount} אושר</Badge>}
-          <Badge color="#767676">{field.consultants.length} יועצים</Badge>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-          <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, color: field.readyToRecommend ? "#3A3A3A" : "#767676", cursor:"pointer", background:"#F0F2F5", border:"1px solid #E2E5EA", borderRadius:4, padding:"5px 10px", whiteSpace:"nowrap" }}>
+          <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:13, fontWeight:600, color: field.readyToRecommend ? "#3A3A3A" : "#767676", cursor:"pointer", background:"#F0F2F5", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", whiteSpace:"nowrap", fontFamily:"'Heebo',sans-serif" }}>
             <input type="checkbox" checked={!!field.readyToRecommend} onChange={e => onToggleReady(e.target.checked)}
               style={{ width:13, height:13, accentColor:"#444444", cursor:"pointer" }} />
             הועבר להמלצה
           </label>
           <button onClick={addConsultant}
-            style={{ background:"#F0F2F5", color:"#3A3A3A", border:"1px solid #E2E5EA", borderRadius:4, padding:"5px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, whiteSpace:"nowrap" }}>
+            style={{ background:"#F0F2F5", color:"#3A3A3A", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, whiteSpace:"nowrap" }}>
             + הוסף יועץ
           </button>
           <button onClick={() => { setEmailCopied(false); setShowEmailModal(true); }}
             title="שלח הזמנה להגשת הצ״מ לכל היועצים בתחום זה"
-            style={{ background:"#EAF1FA", color:"#163356", border:"1.5px solid #B8CEED", borderRadius:4, padding:"5px 10px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:700, whiteSpace:"nowrap" }}>
+            style={{ background:"#EAF1FA", color:"#163356", border:"1.5px solid #B8CEED", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:700, whiteSpace:"nowrap" }}>
             📧 שלח הזמנה
           </button>
           <DeleteButton onClick={onDelete} />
@@ -1283,7 +1282,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                 { h:"שם היועץ", w:undefined },
                 { h:"סוג תשלום", w:undefined },
                 { h:"ערך", w:undefined },
-                showAmtCol ? { h:"סכום (ש״ח)", w:undefined } : null,
+                showAmtCol ? { h:"סכום", w:undefined } : null,
                 { h:"הערות בחירה", w:undefined },
                 { h:"הועבר לחברה עירונית", w:80 },
                 { h:"היועץ אושר", w:70 },
@@ -1329,7 +1328,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                 {/* ערך */}
                 <td style={{ padding:"10px 8px", minWidth:100 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:3, direction:"rtl" }}>
-                    <span style={{ color:"#767676", fontSize:12, fontWeight:600, flexShrink:0 }}>{c.payType==="אחוזים"?"%":"₪"}</span>
+                    <span style={{ color:"#767676", fontSize:12, fontWeight:600, flexShrink:0 }}>{c.payType==="אחוזים"?"%":""}</span>
                     {(c.subItems&&c.subItems.length>0) ? (
                       <span style={{ fontSize:13, fontWeight:700, color:"#0D0D0D", minWidth:65, textAlign:"right", display:"inline-block" }}>{subTotal(c).toLocaleString("he-IL")}</span>
                     ) : (
@@ -1353,7 +1352,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                     )}
                   </div>
                 </td>
-                {/* סכום בש"ח (רק כשיש שורות אחוזים) */}
+                {/* סכום (רק כשיש שורות אחוזים) */}
                 {showAmtCol && (
                 <td style={{ padding:"10px 8px", minWidth:90, textAlign:"right" }}>
                   {c.payType === "אחוזים" && (() => {
@@ -1406,7 +1405,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                     <td style={{ padding:"6px 12px" }} />
                     <td style={{ padding:"6px 8px" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:3, direction:"rtl" }}>
-                        <span style={{ color:"#767676", fontSize:12 }}>₪</span>
+                        <span style={{ color:"#767676", fontSize:12 }}></span>
                         <input type="text" inputMode="decimal" value={it.amount} onChange={e=>updateSubItem(c.id,it.id,"amount",e.target.value)}
                           placeholder="0" style={{ width:65, border:"1px solid #E2E5EA", borderRadius:4, padding:"4px 7px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"right", background:"#fff" }}
                           onFocus={e=>e.target.style.borderColor="#0B1F3A"} onBlur={e=>e.target.style.borderColor="#E2E5EA"} />
@@ -1537,7 +1536,11 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
     if (scrollToIncreaseId) {
       setTimeout(() => {
         const el = document.getElementById("inc-" + scrollToIncreaseId);
-        if (el) { el.scrollIntoView({ behavior:"smooth", block:"center" }); el.style.outline="2px solid #163356"; setTimeout(()=>el.style.outline="",1500); }
+        if (el) {
+          el.scrollIntoView({ behavior:"smooth", block:"center" });
+          el.classList.add("row-highlight");
+          setTimeout(() => el.classList.remove("row-highlight"), 2000);
+        }
       }, 350);
     }
   }, [scrollToIncreaseId]);
@@ -1632,7 +1635,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
       const currentFee = otherCalc.conFee || 0;
       const contractFee = consultant.contractFee || (currentFee > 0 ? currentFee : undefined);
       const supplement = calcSupplement(newEst);
-      const reasonLabel = `${oldBase.toLocaleString("he-IL")} ← ${newSect.toLocaleString("he-IL")} ₪`;
+      const reasonLabel = `${oldBase.toLocaleString("he-IL")} ← ${newSect.toLocaleString("he-IL")} `;
       const newIncrease = supplement !== 0 ? {
         reason: `עדכון אומדן פרק: ${reasonLabel}`,
         amount: supplement.toFixed(2), date: estDate, planOnly: false,
@@ -1675,8 +1678,8 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
 
     const supplement = calcSupplement(newEst);
     const reasonLabel = isOtherPct && otherCalc?.profPct
-      ? `${Math.round(oldBase * otherCalc.profPct / 100).toLocaleString("he-IL")} ← ${Math.round(newEst * otherCalc.profPct / 100).toLocaleString("he-IL")} ₪`
-      : `${oldBase.toLocaleString("he-IL")} ← ${newEst.toLocaleString("he-IL")} ₪`;
+      ? `${Math.round(oldBase * otherCalc.profPct / 100).toLocaleString("he-IL")} ← ${Math.round(newEst * otherCalc.profPct / 100).toLocaleString("he-IL")} `
+      : `${oldBase.toLocaleString("he-IL")} ← ${newEst.toLocaleString("he-IL")} `;
 
     const newIncrease = supplement !== 0 ? {
       reason: `עדכון אומדן ${isOtherPct ? "פרק" : "קבלני"}: ${reasonLabel}`,
@@ -1964,7 +1967,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                         <button onClick={() => delHistEntry(i)} title="מחק שורה"
                           style={{ background:"none", border:"none", color:"#5C2020", cursor:"pointer", fontSize:12, padding:"0 2px", lineHeight:1, flexShrink:0 }}>✕</button>
                         <span>{fmtDate(h.effectiveDate)}</span>
-                        <span style={{ fontWeight:700 }}>{Number(h.amount).toLocaleString("he-IL")} ₪</span>
+                        <span style={{ fontWeight:700 }}>{Number(h.amount).toLocaleString("he-IL")} </span>
                         {h.note && <span>({h.note})</span>}
                         {i===hist.length-1 && <Badge color="#0E7C6A">נוכחי</Badge>}
                       </div>
@@ -1972,7 +1975,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                   </div>
                 ) : (
                   <div style={{ fontSize:12, color:"#9A9A9A", marginBottom: showEstForm?10:0 }}>
-                    אומדן נוכחי: <strong style={{color:"#0D0D0D"}}>{curVal.toLocaleString("he-IL")} ₪</strong>
+                    אומדן נוכחי: <strong style={{color:"#0D0D0D"}}>{curVal.toLocaleString("he-IL")} </strong>
                   </div>
                 );
               })()}
@@ -2004,7 +2007,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                     <div style={{ display:"grid", gridTemplateColumns:cols, gap:8, marginBottom:8, alignItems:"end" }}>
                       <div>
                         <label style={{ fontSize:11, fontWeight:700, color:"#767676", display:"block", marginBottom:1 }}>
-                          {isArchitect && archCalc?.manualBase ? "ערך מבנה חדש לאדריכל (₪) *" : "אומדן קבלני חדש (₪) *"}
+                          {isArchitect && archCalc?.manualBase ? "ערך מבנה חדש לאדריכל  *" : "אומדן קבלני חדש  *"}
                         </label>
                         {isArchitect && (
                           <div style={{ fontSize:10, color:"#767676", marginBottom:3 }}>הערך לא יכלול פרקי פיתוח</div>
@@ -2016,7 +2019,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                       {showSect && (
                         <div>
                           <label style={{ fontSize:11, fontWeight:700, color:"#163356", display:"block", marginBottom:3 }}>
-                            {'אומדן פרק חדש (ש"ח)'}
+                            {'אומדן פרק חדש'}
                           </label>
                           <input value={newSectAmount} onChange={handleSectChange}
                             placeholder={otherCalc?.profBase ? Math.round(otherCalc.profBase).toLocaleString("he-IL") : "0"}
@@ -2032,7 +2035,7 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
                     </div>
                     {newEst > 0 && supp !== 0 && (
                       <div style={{ fontSize:12, marginBottom:8, padding:"6px 10px", borderRadius:4, background: supp>0?"#EFF7F3":"#F8EDED" }}>
-                        הגדלה שתיווצר אוטומטית: <strong style={{ color: supp>0?"#0E7C6A":"#5C2020" }}>{supp>0?"+":""}{Math.round(supp).toLocaleString("he-IL")} ₪</strong>
+                        הגדלה שתיווצר אוטומטית: <strong style={{ color: supp>0?"#0E7C6A":"#5C2020" }}>{supp>0?"+":""}{Math.round(supp).toLocaleString("he-IL")} </strong>
                       </div>
                     )}
                     <div style={{ display:"flex", gap:8 }}>
@@ -2133,20 +2136,20 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 120px 150px 80px auto", gap:10 }}>
               {/* כותרות */}
               <div style={{ fontSize:12, color:"#767676", fontWeight:600, textAlign:"right" }}>סיבת ההגדלה</div>
-              <div style={{ fontSize:12, color:"#767676", fontWeight:600, textAlign:"right" }}>סכום (₪)</div>
+              <div style={{ fontSize:12, color:"#767676", fontWeight:600, textAlign:"right" }}>סכום </div>
               <div style={{ fontSize:12, color:"#767676", fontWeight:600, textAlign:"right" }}>תאריך</div>
               <div style={{ fontSize:12, color:"#767676", fontWeight:600, textAlign:"right" }}>תכנון בלבד</div>
               <div />
               {/* שדות */}
               <input value={inc.reason} onChange={e=>setInc({...inc,reason:e.target.value})}
                 placeholder="לדוגמה: תוספת תכנון"
-                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none", direction:"rtl" }}
+                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none", direction:"rtl" }}
                 onFocus={e=>e.target.style.borderColor="#444444"} onBlur={e=>e.target.style.borderColor="#E2E5EA"} />
               <input type="number" value={inc.amount} onChange={e=>setInc({...inc,amount:e.target.value})}
-                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"right" }}
+                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"right" }}
                 onFocus={e=>e.target.style.borderColor="#444444"} onBlur={e=>e.target.style.borderColor="#E2E5EA"} />
               <FlatpickrDate value={inc.date} onChange={v=>setInc({...inc,date:v})}
-                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:8, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none" }} />
+                style={{ background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 11px", fontSize:14, color:"#0D0D0D", fontFamily:"'Heebo',sans-serif", outline:"none" }} />
               <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
                 <input type="checkbox" checked={!!inc.planOnly} onChange={e=>setInc({...inc,planOnly:e.target.checked})}
                   style={{ width:16, height:16, cursor:"pointer" }} />
@@ -2252,7 +2255,7 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#FAFBFC"}">${ro
         </div>
         {rows.length > 0 && (
           <button onClick={exportToExcel} className="allow-readonly"
-            style={{ padding:"10px 18px", background:"#0E7C6A", color:"#fff", border:"none", borderRadius:10,
+            style={{ padding:"8px 16px", background:"#0E7C6A", color:"#fff", border:"1.5px solid transparent", borderRadius:4,
               fontFamily:"'Heebo',sans-serif", fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap",
               display:"flex", alignItems:"center", gap:8 }}>
             <span>📥</span> ייצוא לאקסל
@@ -2265,8 +2268,7 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#FAFBFC"}">${ro
           <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#9A9A9A", fontSize:15 }}>🔍</span>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="חיפוש לפי שם יועץ או תחום..."
-            style={{ width:"100%", padding:"9px 38px 9px 12px", border:"1.5px solid #E2E5EA", borderRadius:10, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box", direction:"rtl" }}
-            onFocus={e=>e.target.style.borderColor="#0B1F3A"} onBlur={e=>e.target.style.borderColor="#E2E5EA"} />
+            style={{ width:"100%", padding:"8px 38px 8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box", direction:"rtl" }} />
         </div>
       )}
       {rows.length === 0 ? (
@@ -2316,14 +2318,14 @@ ${dataRows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#FAFBFC"}">${ro
                       <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
                         {totalInc !== 0
                           ? totalInc < 0
-                            ? <span style={{ fontWeight:600, color:"#5C2020" }}>הפחתה {fmt(Math.abs(totalInc))}</span>
+                            ? <span style={{ fontWeight:600, color:"#5C2020", direction:"ltr", display:"inline-block" }}>-{fmt(Math.abs(totalInc))}</span>
                             : <span style={{ fontWeight:600, color:"#5C3D10", direction:"ltr", display:"inline-block" }}>+{fmt(totalInc)}</span>
                           : dash}
                       </td>
                       <td style={{ padding:"10px 12px", whiteSpace:"nowrap" }}>
                         {pendingInc !== 0
                           ? pendingInc < 0
-                            ? <span style={{ fontWeight:600, color:"#5C2020" }}>הפחתה {fmt(Math.abs(pendingInc))}</span>
+                            ? <span style={{ fontWeight:600, color:"#5C2020", direction:"ltr", display:"inline-block" }}>-{fmt(Math.abs(pendingInc))}</span>
                             : <span style={{ fontWeight:600, color:"#0E7C6A", direction:"ltr", display:"inline-block" }}>+{fmt(pendingInc)}</span>
                           : dash}
                       </td>
@@ -2695,7 +2697,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
     const totalAmt = invRows.reduce((s,r) => s + Number(r.amount||0), 0);
     const rowKeySet = new Set(invRows.map(r => r.rowKey));
     const subject = `CostPilot — חשבון מס׳ ${invNum} ממתין לאישורך — ${projectMeta.name}`;
-    const headers = ["אבן דרך", "% מחוזה", "% מצטבר שולם", "% מבוקש בחשבון", "נדרש (₪)", "שולם (₪)", "יתרה (₪)", "סכום חשבון (₪)"];
+    const headers = ["אבן דרך", "% מחוזה", "% מצטבר שולם", "% מבוקש בחשבון", "נדרש ", "שולם ", "יתרה ", "סכום חשבון "];
     const outro = "אנא היכנסו למערכת ואשרו את החשבונית.\n\nבברכה,\nמערכת CostPilot";
     const msRows = fieldMilestones.map(m => {
       const key = "m-"+m.id;
@@ -2852,7 +2854,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
               <th style={{ padding:"8px 10px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>אחוז</th>
               <th style={{ padding:"8px 14px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>סכום בחוזה</th>
               <th style={{ padding:"8px 10px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>חשבון %</th>
-              <th style={{ padding:"8px 14px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>חשבון מאושר (ש״ח)</th>
+              <th style={{ padding:"8px 14px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>חשבון מאושר</th>
               <th style={{ padding:"8px 10px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>תכנון בלבד</th>
             </tr>
           </thead>
@@ -2883,7 +2885,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                     <td style={{ padding:"10px 14px", textAlign:"right", fontWeight:600, color: Number(paidPct)>0?"#0D0D0D":"#9A9A9A" }}>{paidPct}%</td>
                     <td style={{ padding:"10px 14px", textAlign:"right",   fontWeight:700, color: paid>0?"#0D0D0D":"#9A9A9A" }}>
                       {fmt(paid)}
-                      {isOverpaid && <span title={`שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")} ₪ עודף`} style={{ marginRight:4, color:"#5C2020", fontSize:10, fontWeight:700 }}>⛔</span>}
+                      {isOverpaid && <span title={`שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")}  עודף`} style={{ marginRight:4, color:"#5C2020", fontSize:10, fontWeight:700 }}>⛔</span>}
                     </td>
                     <td style={{ padding:"10px 14px", textAlign:"right" }}>
                       {m.planOnly ? <Badge color="#163356">✓</Badge> : <span style={{color:"#E2E5EA"}}>—</span>}
@@ -2903,7 +2905,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                               <table style={{ borderCollapse:"collapse", fontSize:12, width:"100%" }}>
                                 <thead>
                                   <tr style={{ background:"#F0F2F5", borderBottom:"1px solid #E2E5EA" }}>
-                                    {["מס׳ חשבון","ת. קבלה","סכום (ש״ח)","אחוז (%)","מנהל פרויקט","מנהל יחידה","אישור מזמין","הוחזר ליועץ","נדחה","סיבה","מחק","שלח לאישור"].map(h=>(
+                                    {["מס׳ חשבון","ת. קבלה","סכום","אחוז (%)","מנהל פרויקט","מנהל יחידה","אישור מזמין","הוחזר ליועץ","נדחה","סיבה","מחק","שלח לאישור"].map(h=>(
                                       <th key={h} style={{ padding:"5px 8px", textAlign:"right", color:"#163356", fontWeight:700, fontSize:10, whiteSpace:"nowrap" }}>{h}</th>
                                     ))}
                                   </tr>
@@ -2922,7 +2924,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                                         <NumericCell value={inv.amount||""} baseAmt={baseAmt} mode="amount"
                                           onCommit={(amt,pct) => {
                                             if (baseAmt > 0 && Number(amt) > baseAmt + 0.01 + 0.01) {
-                                              alert(`הסכום ${Number(amt).toLocaleString("he-IL")} ₪ חורג מסכום האבן דרך / ההגדלה (${baseAmt.toLocaleString("he-IL")} ₪)`);
+                                              alert(`הסכום ${Number(amt).toLocaleString("he-IL")}  חורג מסכום האבן דרך / ההגדלה (${baseAmt.toLocaleString("he-IL")} )`);
                                               return;
                                             }
                                             updateInvoice(inv.id, pct?{amount:amt,pct}:{amount:amt});
@@ -2937,7 +2939,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                                               return;
                                             }
                                             if (baseAmt > 0 && Number(amt) > baseAmt + 0.01 + 0.01) {
-                                              alert(`הסכום המחושב ${Number(amt).toLocaleString("he-IL")} ₪ חורג מסכום האבן דרך / ההגדלה (${baseAmt.toLocaleString("he-IL")} ₪)`);
+                                              alert(`הסכום המחושב ${Number(amt).toLocaleString("he-IL")}  חורג מסכום האבן דרך / ההגדלה (${baseAmt.toLocaleString("he-IL")} )`);
                                               return;
                                             }
                                             updateInvoice(inv.id, amt?{pct,amount:amt}:{pct});
@@ -2991,7 +2993,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                           )}
                           {isMilestoneLocked && !sel.noClaims && (
                             <div style={{ color: isOverpaid?"#5C2020":"#059669", fontSize:12, fontWeight:600, marginBottom:6, textAlign:"right", background: isOverpaid?"#F8EDED":"#EFF7F3", border:`1px solid ${isOverpaid?"#F0B8B8":"#C6E8D4"}`, borderRadius:4, padding:"6px 10px" }}>
-                              {isOverpaid ? `⛔ שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")} ₪ מעבר לאומדן החדש` : "✓ אבן דרך הושלמה — לא ניתן להוסיף חשבונות"}
+                              {isOverpaid ? `⛔ שולם יתר — ${(paid - baseAmt).toLocaleString("he-IL")}  מעבר לאומדן החדש` : "✓ אבן דרך הושלמה — לא ניתן להוסיף חשבונות"}
                             </div>
                           )}
                           {baseAmt === 0 && paid === 0 && !isIncrease && Object.keys(milestoneAllocation).length > 0 && (
@@ -3053,7 +3055,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                     <>
                       <input value={cSearch} onChange={e=>setCSearch(e.target.value)}
                         placeholder="חיפוש לפי שם תחום או שם יועץ..."
-                        style={{ width:"100%", padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", marginBottom:10, background:"#F7F8FA" }} />
+                        style={{ width:"100%", padding:"8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", marginBottom:10, background:"#F7F8FA" }} />
                       <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
                         {filtered.map(c => (
                           <div key={c.name+c.field} onClick={()=>setSelConsultant(c)}
@@ -3163,7 +3165,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
               </div>
               {companyId && !editingMs && (
                 <button onClick={openMsEditor}
-                  style={{ fontSize:12, padding:"4px 12px", borderRadius:4, border:"1.5px solid #B8CEED", background:"#EAF1FA", color:"#163356", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>
+                  style={{ fontSize:13, padding:"8px 12px", borderRadius:4, border:"1.5px solid #E2E5EA", background:"#EAF1FA", color:"#163356", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>
                   ✏️ ערוך אבני דרך
                 </button>
               )}
@@ -3550,7 +3552,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                 }
               </td>
               <td style={{ padding:"8px 14px", fontWeight:700, color:"#0D0D0D", textAlign:"right", borderLeft:"1px solid #E2E5EA", whiteSpace:"nowrap" }}>סה״כ אישור פרויקט</td>
-              <td style={{ padding:"8px 14px", fontWeight:800, color:"#0D0D0D", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>₪{fmtN(approvalTotal)}</td>
+              <td style={{ padding:"8px 14px", fontWeight:800, color:"#0D0D0D", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>{fmtN(approvalTotal)}</td>
               <td style={{ padding:"5px 10px" }}>
                 <input value={bs.tenderDocsNotes||""} onChange={e=>upd("tenderDocsNotes",e.target.value)} placeholder="הערה..." style={{ width:"100%", textAlign:"right", background:"#F7F8FA", border:"1px solid #E2E5EA", borderRadius:4, padding:"4px 8px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }} />
               </td>
@@ -3604,13 +3606,13 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
             <tr style={{ borderBottom:"1px solid #F0F2F5" }}>
               <td colSpan={2} style={{ borderLeft:"1px solid #E2E5EA" }}></td>
               <td style={{ padding:"8px 14px", fontWeight:700, color:"#3A3A3A", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>סה״כ התקבל</td>
-              <td style={{ padding:"8px 14px", fontWeight:800, color:"#0D0D0D", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>₪{fmtN(receivedTotal)}</td>
+              <td style={{ padding:"8px 14px", fontWeight:800, color:"#0D0D0D", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>{fmtN(receivedTotal)}</td>
               <td />
             </tr>
             <tr>
               <td colSpan={2} style={{ borderLeft:"1px solid #E2E5EA" }}></td>
               <td style={{ padding:"8px 14px", fontWeight:700, color:needed>0?"#5C2020":"#3A3A3A", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>נדרש להשלמה</td>
-              <td style={{ padding:"8px 14px", fontWeight:800, fontSize:14, color:needed>0?"#5C2020":"#3A3A3A", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>{needed<0?"עודף ✓ ":""}₪{fmtN(Math.abs(needed))}</td>
+              <td style={{ padding:"8px 14px", fontWeight:800, fontSize:14, color:needed>0?"#5C2020":"#3A3A3A", textAlign:"right", borderLeft:"1px solid #E2E5EA" }}>{needed<0?"עודף ✓ ":""}{fmtN(Math.abs(needed))}</td>
               <td />
             </tr>
           </tbody>
@@ -3978,7 +3980,7 @@ function BudgetTab({ quotesRows, consultantsRows, setConsultantsRows, budgetStat
                                     style={{ fontSize:11, cursor:"pointer", fontWeight:700, userSelect:"none",
                                       color: overheadMode==="fixed"?"#5C3D10":"#767676",
                                       textDecoration: "underline dotted" }}>
-                                    {overheadMode==="fixed"?"₪":"%"}
+                                    {overheadMode==="fixed"?"":"%"}
                                   </span>
                                   {overheadMode==="fixed"
                                     ? <input type="number" value={bs.overheadFixed||""} onChange={e=>upd("overheadFixed",e.target.value)} style={{...inputStyle, width:75, textAlign:"right"}} placeholder="סכום" />
@@ -4528,7 +4530,7 @@ function WorkScopesPage({ workScopes, setWorkScopes, suppliers, companies }) {
       {/* כותרת */}
       <div style={{ padding:"18px 28px 0", borderBottom:"1.5px solid #E2E5EA", background:"#fff" }}>
         <div style={{ fontSize:11, color:"#767676", fontWeight:700, letterSpacing:3, marginBottom:2 }}>מאגר גלובלי</div>
-        <h1 style={{ fontSize:20, fontWeight:900, color:"#0D0D0D", margin:"0 0 12px" }}>תכולות עבודה</h1>
+        <h1 style={{ fontSize:24, fontWeight:900, color:"#0D0D0D", margin:"0 0 12px" }}>תכולות עבודה</h1>
         {/* טאבים — חברה אחת לכל טאב */}
         <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
           {(companies||[]).map(company => {
@@ -4791,11 +4793,11 @@ function SuppliersPage({ suppliers, setSuppliers, professions }) {
             {editError && <div style={{ color:"#5C2020", fontSize:13, background:"#F8EDED", border:"1px solid #F0B8B8", borderRadius:8, padding:"8px 12px" }}>{editError}</div>}
             <div style={{ display:"flex", gap:10, justifyContent:"flex-start", marginTop:4 }}>
               <button onClick={saveModal}
-                style={{ padding:"9px 24px", background:"#0B1F3A", color:"#fff", border:"none", borderRadius:4, fontSize:14, fontWeight:700, fontFamily:"'Heebo',sans-serif", cursor:"pointer" }}>
+                style={{ padding:"8px 24px", background:"#0B1F3A", color:"#fff", border:"1.5px solid transparent", borderRadius:4, fontSize:14, fontWeight:700, fontFamily:"'Heebo',sans-serif", cursor:"pointer" }}>
                 {editId==="new"?"הוסף":"שמור"}
               </button>
               <button onClick={closeModal}
-                style={{ padding:"9px 18px", background:"#F0F2F5", color:"#767676", border:"none", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", cursor:"pointer" }}>ביטול</button>
+                style={{ padding:"8px 18px", background:"#F0F2F5", color:"#767676", border:"1.5px solid transparent", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", cursor:"pointer" }}>ביטול</button>
             </div>
           </div>
         </div>
@@ -4847,7 +4849,7 @@ function CompaniesPage({ companies, setCompanies }) {
           </Grid>
           <div style={{ marginTop:14, display:"flex", gap:10 }}>
             <PrimaryButton onClick={add}>+ הוסף חברה</PrimaryButton>
-            <button onClick={() => setShowAdd(false)} style={{ background:"#F0F2F5", border:"none", borderRadius:4, padding:"9px 16px", fontSize:13, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
+            <button onClick={() => setShowAdd(false)} style={{ background:"#F0F2F5", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 16px", fontSize:13, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
           </div>
         </Card>
       )}
@@ -4871,7 +4873,7 @@ function CompaniesPage({ companies, setCompanies }) {
 
                 <div style={{ display:"flex", gap:8 }}>
                   <PrimaryButton onClick={saveEdit}>שמור</PrimaryButton>
-                  <button onClick={()=>setEditId(null)} style={{ background:"#F0F2F5", border:"none", borderRadius:8, padding:"8px 14px", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontSize:13 }}>ביטול</button>
+                  <button onClick={()=>setEditId(null)} style={{ background:"#F0F2F5", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 14px", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontSize:13, color:"#767676" }}>ביטול</button>
                 </div>
               </div>
             ) : (
@@ -4888,7 +4890,7 @@ function CompaniesPage({ companies, setCompanies }) {
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>{ setEditId(c.id); setEditForm({...c}); }}
-                    style={{ background:"#EAF1FA", color:"#163356", border:"1px solid #B8CEED", borderRadius:4, padding:"4px 12px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>עריכה</button>
+                    style={{ background:"#EAF1FA", color:"#163356", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>עריכה</button>
                   <DeleteButton onClick={()=>del(c.id)} />
                 </div>
               </div>
@@ -4946,7 +4948,7 @@ function ManagersPage({ managers, setManagers }) {
             <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
               <label style={{ fontSize:12, color:"#767676", fontWeight:600 }}>תפקיד</label>
               <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}
-                style={{ padding:"8px 10px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#0D0D0D", outline:"none", direction:"rtl", minWidth:140 }}>
+                style={{ padding:"8px 10px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#0D0D0D", outline:"none", direction:"rtl", minWidth:140 }}>
                 {MANAGER_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
             </div>
@@ -4955,7 +4957,7 @@ function ManagersPage({ managers, setManagers }) {
           </div>
           <div style={{ marginTop:14, display:"flex", gap:10 }}>
             <PrimaryButton onClick={add}>+ הוסף מנהל</PrimaryButton>
-            <button onClick={() => setShowAdd(false)} style={{ background:"#F0F2F5", border:"none", borderRadius:4, padding:"9px 16px", fontSize:13, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
+            <button onClick={() => setShowAdd(false)} style={{ background:"#F0F2F5", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 16px", fontSize:13, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
           </div>
         </Card>
       )}
@@ -4975,7 +4977,7 @@ function ManagersPage({ managers, setManagers }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                   <label style={{ fontSize:12, color:"#767676", fontWeight:600 }}>תפקיד</label>
                   <select value={editForm.role||"planning"} onChange={e=>setEditForm({...editForm,role:e.target.value})}
-                    style={{ padding:"8px 10px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#0D0D0D", outline:"none", direction:"rtl", minWidth:140 }}>
+                    style={{ padding:"8px 10px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:"#0D0D0D", outline:"none", direction:"rtl", minWidth:140 }}>
                     {MANAGER_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
                 </div>
@@ -4983,7 +4985,7 @@ function ManagersPage({ managers, setManagers }) {
                 <TextInput label="טלפון" value={editForm.phone||""} onChange={e=>setEditForm({...editForm,phone:e.target.value})} />
                 <div style={{ display:"flex", gap:8 }}>
                   <PrimaryButton onClick={saveEdit}>שמור</PrimaryButton>
-                  <button onClick={()=>setEditId(null)} style={{ background:"#F0F2F5", border:"none", borderRadius:8, padding:"8px 14px", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontSize:13 }}>ביטול</button>
+                  <button onClick={()=>setEditId(null)} style={{ background:"#F0F2F5", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 14px", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontSize:13, color:"#767676" }}>ביטול</button>
                 </div>
               </div>
             ) : (
@@ -4999,7 +5001,7 @@ function ManagersPage({ managers, setManagers }) {
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>{ setEditId(m.id); setEditForm({...m}); }}
-                    style={{ background:"#EAF1FA", color:"#163356", border:"1px solid #B8CEED", borderRadius:4, padding:"4px 12px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>עריכה</button>
+                    style={{ background:"#EAF1FA", color:"#163356", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>עריכה</button>
                   <DeleteButton onClick={()=>del(m.id)} />
                 </div>
               </div>
@@ -5082,7 +5084,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
           <div style={{ flex:1, minWidth:200 }}>
             <div style={{ fontSize:12, fontWeight:600, color:"#767676", marginBottom:6 }}>בחר חברה עירונית *</div>
             <select value={selCompany} onChange={e=>{ setSelCompany(e.target.value); setSelProf(""); }}
-              style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", outline:"none" }}>
+              style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", outline:"none" }}>
               <option value="">-- בחר --</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -5096,7 +5098,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
                   onFocus={()=>setProfFocused(true)}
                   onBlur={()=>setTimeout(()=>setProfFocused(false),150)}
                   placeholder="הקלד לחיפוש תחום..."
-                  style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box", background:"#F7F8FA" }} />
+                  style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box", background:"#F7F8FA" }} />
                 {profFocused && profSearchOpts.length > 0 && (
                   <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#fff", border:"1.5px solid #E2E5EA", borderRadius:4, zIndex:200, boxShadow:"0 8px 24px #0002", maxHeight:220, overflowY:"auto", marginTop:2 }}>
                     {profSearchOpts.map(p => (
@@ -5124,7 +5126,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 <Badge color="#0B1F3A">{companyMilestones.length} אבני דרך</Badge>
                 <button onClick={()=>setShowCopy(!showCopy)}
-                  style={{ background:"#EAF1FA", color:"#163356", border:"1px solid #B8CEED", borderRadius:4, padding:"4px 12px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>
+                  style={{ background:"#EAF1FA", color:"#163356", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>
                   📋 העתק מחברה אחרת
                 </button>
               </div>
@@ -5134,7 +5136,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
                 <div>
                   <div style={{ fontSize:11, fontWeight:600, color:"#163356", marginBottom:4 }}>חברה עירונית</div>
                   <select value={copyFromCompany} onChange={e=>{ setCopyFromCompany(e.target.value); setCopyFromProf(""); }}
-                    style={{ padding:"7px 10px", border:"1px solid #B8CEED", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", outline:"none" }}>
+                    style={{ padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", outline:"none" }}>
                     <option value="">-- בחר --</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -5148,7 +5150,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
                         onFocus={()=>setCopyProfFocused(true)}
                         onBlur={()=>setTimeout(()=>setCopyProfFocused(false),150)}
                         placeholder="הקלד לחיפוש מקצוע..."
-                        style={{ padding:"7px 10px", border:"1px solid #B8CEED", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", outline:"none", width:"100%", boxSizing:"border-box" }} />
+                        style={{ padding:"8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", outline:"none", width:"100%", boxSizing:"border-box" }} />
                       {copyProfFocused && (() => {
                         const opts = Object.keys(milestones[copyFromCompany]||{}).filter(p => !copyProfSearch || p.startsWith(copyProfSearch));
                         return opts.length > 0 ? (
@@ -5171,7 +5173,7 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
                   </div>
                 )}
                 <button onClick={()=>{ setShowCopy(false); setCopyFromCompany(""); setCopyFromProf(""); }}
-                  style={{ background:"#F0F2F5", color:"#767676", border:"none", borderRadius:4, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
+                  style={{ background:"#F0F2F5", color:"#767676", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"8px 12px", fontSize:13, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
               </div>
             )}
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
@@ -5213,10 +5215,8 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
                         <td style={{ padding:"10px 16px", color:"#9A9A9A", fontWeight:600 }}>{i+1}</td>
                         <td style={{ padding:"10px 16px", fontWeight:600, color:"#0D0D0D" }}>{m.name}</td>
                         <td style={{ padding:"10px 16px", textAlign:"right", fontWeight:700, color:"#3A3A3A" }}>{m.pct}%</td>
-                        <td style={{ padding:"10px 16px", textAlign:"right" }}>
-                          {m.planOnly
-                            ? <span style={{ background:"#F0F2F5", color:"#0D0D0D", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>✓ תכנון</span>
-                            : <span style={{ color:"#D0D5DD", fontSize:12 }}>—</span>}
+                        <td style={{ padding:"6px 16px", textAlign:"right" }}>
+                          {m.planOnly ? <Badge color="#9A9A9A" noDot>✓</Badge> : <span style={{ color:"#D0D5DD", fontSize:13 }}>—</span>}
                         </td>
                         <td style={{ padding:"10px 16px", textAlign:"right" }}>
                           <div style={{ display:"flex", gap:6, justifyContent:"center" }}>
@@ -5247,18 +5247,20 @@ function MilestonesPage({ companies, milestones, setMilestones, professions }) {
               <div style={{ flex:1, minWidth:200 }}>
                 <div style={{ fontSize:12, fontWeight:600, color:"#767676", marginBottom:5 }}>שם אבן הדרך</div>
                 <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="לדוגמה: תכנון ראשוני"
-                  style={{ width:"100%", padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
+                  style={{ width:"100%", padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
               </div>
               <div>
                 <div style={{ fontSize:12, fontWeight:600, color:"#767676", marginBottom:5 }}>אחוז שכר טרחה</div>
                 <input type="number" value={newPct} onChange={e=>setNewPct(e.target.value)} placeholder="0"
-                  style={{ width:90, padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
+                  style={{ width:90, padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none" }} />
               </div>
-              <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#767676", cursor:"pointer", paddingBottom:8 }}>
-                <input type="checkbox" checked={newPlanOnly} onChange={e=>setNewPlanOnly(e.target.checked)} />
-                תכנון בלבד
-              </label>
-              <div style={{ paddingBottom:2 }}><PrimaryButton onClick={add}>+ הוסף</PrimaryButton></div>
+              <div style={{ alignSelf:"flex-end", paddingBottom:9 }}>
+                <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#767676", cursor:"pointer", whiteSpace:"nowrap" }}>
+                  <input type="checkbox" checked={newPlanOnly} onChange={e=>setNewPlanOnly(e.target.checked)} style={{ cursor:"pointer", accentColor:"#0B1F3A", width:14, height:14 }} />
+                  תכנון בלבד
+                </label>
+              </div>
+              <div style={{ alignSelf:"flex-end" }}><PrimaryButton onClick={add}>+ הוסף</PrimaryButton></div>
             </div>
           </Card>
         </>
@@ -5419,8 +5421,8 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
       case "planningManager":  return d.planningManager||"";
       case "executionManager": return d.executionManager||"";
       case "status":           return p.status||"";
-      case "startDate":        return o.startDate||"";
-      case "endDate":          return o.endDate||"";
+      case "startDate":        return o.startDate ? o.startDate.split("-").reverse().join("/") : "";
+      case "endDate":          return o.endDate   ? o.endDate.split("-").reverse().join("/")   : "";
       case "buildingArea":     return String(o.buildingArea||"");
       case "contractorEst":    return String(o.contractorEst||"");
       case "municipalEst":     return String(o.municipalEst||"");
@@ -5429,11 +5431,12 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
   };
 
   // Projects filtered by all columns EXCEPT targetFkey (for dropdown options)
+  // undefined = no filter (show all); Set = show only items in set
   const getFilteredExcept = (targetFkey) =>
     projects.filter(p => cols.every(({fkey}) => {
       if (!fkey || fkey === targetFkey) return true;
       const sel = colFilters[fkey];
-      if (!sel || sel.size === 0) return true;
+      if (sel === undefined) return true;
       return sel.has(getVal(p, fkey));
     }));
 
@@ -5441,12 +5444,12 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
     cols.every(({fkey}) => {
       if (!fkey) return true;
       const sel = colFilters[fkey];
-      if (!sel || sel.size === 0) return true;
+      if (sel === undefined) return true;
       return sel.has(getVal(p, fkey));
     })
   );
 
-  const isFiltered = (fkey) => colFilters[fkey] && colFilters[fkey].size > 0;
+  const isFiltered = (fkey) => colFilters[fkey] !== undefined;
   const hasAnyFilter = cols.some(({fkey}) => fkey && isFiltered(fkey));
 
   const openDropdown = (fkey, e) => {
@@ -5465,23 +5468,30 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
     const fkey = openFilter;
     const partial = getFilteredExcept(fkey);
     const allVals = [...new Set(partial.map(p => getVal(p, fkey)))].sort((a,b)=>a.localeCompare(b,"he"));
-    const sel = colFilters[fkey] || new Set();
-    const isAllSelected = sel.size === 0; // size=0 means "all selected" (no filter)
-    const visibleVals = allVals.filter(v => !filterSearch || v.toLowerCase().includes(filterSearch.toLowerCase()));
+    const sel = colFilters[fkey]; // undefined = no filter; Set = explicit selection
+    const isAllSelected = sel === undefined;
+    const searchTerm = filterSearch.trim();
+    const visibleVals = allVals.filter(v => !searchTerm || v.includes(searchTerm));
 
     const toggle = (val) => {
       setColFilters(prev => {
-        const cur = prev[fkey] ? new Set(prev[fkey]) : new Set();
-        if (cur.has(val)) cur.delete(val); else cur.add(val);
-        // if all vals selected, clear filter (size=0 = all)
-        if (cur.size === allVals.length) return { ...prev, [fkey]: new Set() };
+        const curSel = prev[fkey];
+        if (curSel === undefined) {
+          // Was "all" — uncheck this one item
+          const newSet = new Set(allVals.filter(v => v !== val));
+          return { ...prev, [fkey]: newSet };
+        }
+        const cur = new Set(curSel);
+        if (cur.has(val)) { cur.delete(val); } else { cur.add(val); }
+        // If all vals re-selected, remove filter entirely
+        if (cur.size >= allVals.length) { const n = {...prev}; delete n[fkey]; return n; }
         return { ...prev, [fkey]: cur };
       });
     };
 
-    const selectAll  = () => setColFilters(prev => ({ ...prev, [fkey]: new Set() }));
-    const clearAll   = () => setColFilters(prev => ({ ...prev, [fkey]: new Set(allVals) }));
-    const isChecked  = (v) => isAllSelected ? true : sel.has(v);
+    const selectAll = () => setColFilters(prev => { const n = {...prev}; delete n[fkey]; return n; });
+    const clearAll  = () => setColFilters(prev => ({ ...prev, [fkey]: new Set() }));
+    const isChecked = (v) => isAllSelected ? true : sel.has(v);
 
     return ReactDOM.createPortal(
       <>
@@ -5495,7 +5505,7 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
           <input autoFocus value={filterSearch} onChange={e=>setFilterSearch(e.target.value)}
             placeholder="חיפוש..."
             style={{ border:"1px solid #E2E5EA", borderRadius:4, padding:"5px 8px", fontSize:12,
-              outline:"none", textAlign:"right", fontFamily:"'Heebo',sans-serif", background:"#F7F8FA" }} />
+              outline:"none", textAlign:"right", direction:"rtl", fontFamily:"'Heebo',sans-serif", background:"#F7F8FA" }} />
           <div style={{ display:"flex", gap:6 }}>
             <button onClick={selectAll} style={{ flex:1, background:"#EAF1FA", color:"#163356", border:"none", borderRadius:4, padding:"4px 0", fontSize:11, cursor:"pointer", fontWeight:600 }}>בחר הכל</button>
             <button onClick={clearAll}  style={{ flex:1, background:"#F0F2F5", color:"#767676", border:"none", borderRadius:4, padding:"4px 0", fontSize:11, cursor:"pointer", fontWeight:600 }}>נקה הכל</button>
@@ -5503,13 +5513,10 @@ function MainInfoPage({ allData, projects, companies, setAllData, setProjects, o
           <div style={{ maxHeight:220, overflowY:"auto", display:"flex", flexDirection:"column", gap:1 }}>
             {visibleVals.length === 0 && <div style={{ color:"#9A9A9A", fontSize:11, padding:"6px 4px" }}>אין תוצאות</div>}
             {visibleVals.map(val => (
-              <label key={val} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 6px", borderRadius:4,
-                cursor:"pointer", fontSize:12, background: isChecked(val) ? "#EAF1FA" : "#fff",
-                border: isChecked(val) ? "1px solid #B8CEED" : "1px solid transparent" }}>
-                <input type="checkbox" checked={isChecked(val)} onChange={()=>toggle(val)}
-                  style={{ cursor:"pointer", width:14, height:14 }} />
+              <div key={val} onClick={()=>toggle(val)} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 6px", borderRadius:4, cursor:"pointer", fontSize:12 }}>
+                <span style={{ width:14, height:14, flexShrink:0, border:"1.5px solid #9A9A9A", borderRadius:2, display:"flex", alignItems:"center", justifyContent:"center", background:"#fff", fontSize:11, color:"#0D0D0D", fontWeight:700 }}>{isChecked(val) ? "✓" : ""}</span>
                 <span style={{ flex:1 }}>{val || "(ריק)"}</span>
-              </label>
+              </div>
             ))}
           </div>
           <div style={{ borderTop:"1px solid #F0F2F5", paddingTop:6, display:"flex", justifyContent:"flex-end" }}>
@@ -5619,7 +5626,7 @@ ${rows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#F7F8FA"}">${row.ce
                   return (
                     <th key={label} style={{ padding:"8px 8px 8px 4px", textAlign:"right", fontWeight:700, fontSize:11,
                       whiteSpace:"nowrap", width:w, minWidth:w, borderLeft:"1px solid #F0F2F5",
-                      color: active ? "#0B1F3A" : "#767676",
+                      color: "#767676",
                       background: active ? "#EAF1FA" : "#F7F8FA" }}>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
                         <span>{label}</span>
@@ -5670,7 +5677,7 @@ ${rows.map((row,i)=>`<tr style="background:${i%2===0?"#fff":"#F7F8FA"}">${row.ce
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #F0F2F5" }}>{inp(p.id,"projectNumber",d.projectNumber)}</td>
                     <td style={{ padding:"6px 8px", borderLeft:"1px solid #F0F2F5", fontWeight:600 }}>
                       <span onClick={() => onNavigate && onNavigate(p)}
-                        style={{ fontWeight:600, fontSize:13, color:"#0B1F3A", cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted" }}
+                        style={{ fontWeight:600, fontSize:13, color:"#0B1F3A", cursor:"pointer" }}
                         onMouseOver={e=>e.target.style.color="#112D52"} onMouseOut={e=>e.target.style.color="#0B1F3A"}>
                         {p.name}
                       </span>
@@ -5771,7 +5778,7 @@ function CostsPage({ allData, projects, statsRows }) {
     return true;
   }).sort((a,b) => (b.area||0) - (a.area||0));
 
-  const fmt = n => n ? "₪" + Number(n).toLocaleString("en-US", {maximumFractionDigits:0}) : "—";
+  const fmt = n => n ? "" + Number(n).toLocaleString("en-US", {maximumFractionDigits:0}) : "—";
 
   return (
     <div className="fade" style={{ padding:"34px 38px", display:"flex", flexDirection:"column", gap:22 }}>
@@ -5787,7 +5794,7 @@ function CostsPage({ allData, projects, statsRows }) {
           <div>
             <div style={{ fontSize:12, fontWeight:600, color:"#767676", marginBottom:5 }}>סינון לפי תחום</div>
             <select value={filterField} onChange={e=>setFilterField(e.target.value)}
-              style={{ padding:"7px 12px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#0D0D0D", outline:"none", minWidth:180, direction:"rtl" }}>
+              style={{ padding:"8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#0D0D0D", outline:"none", minWidth:180, direction:"rtl", height:37, boxSizing:"border-box" }}>
               <option value="">כל התחומים</option>
               {allFields.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
@@ -5797,13 +5804,13 @@ function CostsPage({ allData, projects, statsRows }) {
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <input type="text" inputMode="numeric" value={myArea} onChange={e=>setMyArea(e.target.value)}
                 placeholder="לדוגמה: 2500"
-                style={{ padding:"7px 12px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", outline:"none", width:140, textAlign:"right" }} />
+                style={{ padding:"8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", outline:"none", width:140, textAlign:"right", height:37, boxSizing:"border-box" }} />
               {myArea && <span style={{ fontSize:12, color:"#767676" }}>מציג ±4000 מ״ר</span>}
             </div>
           </div>
           {(filterField || myArea) && (
             <button onClick={()=>{setFilterField("");setMyArea("");}}
-              style={{ padding:"7px 14px", border:"1px solid #E2E5EA", borderRadius:8, fontSize:12, color:"#767676", background:"#F7F8FA", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+              style={{ padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, color:"#767676", background:"#F7F8FA", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
               נקה סינון
             </button>
           )}
@@ -5823,7 +5830,7 @@ function CostsPage({ allData, projects, statsRows }) {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, direction:"rtl" }}>
             <thead>
               <tr style={{ background:"#F7F8FA", borderBottom:"2px solid #E2E5EA" }}>
-                {["פרויקט","שטח (מ״ר)","תחום","שם יועץ","סכום (ש״ח)"].map(h => (
+                {["פרויקט","שטח (מ״ר)","תחום","שם יועץ","סכום"].map(h => (
                   <th key={h} style={{ padding:"9px 14px", textAlign:"right", color:"#767676", fontWeight:700, fontSize:11 }}>{h}</th>
                 ))}
               </tr>
@@ -6108,7 +6115,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailS
       )}
       <div style={{ marginBottom:24 }}>
         <div style={{ fontSize:11, color:"#767676", fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:4 }}>גיליון גלובלי</div>
-        <h1 style={{ fontSize:22, fontWeight:700, color:"#0D0D0D" }}>לוח בקרה</h1>
+        <h1 style={{ fontSize:24, fontWeight:900, color:"#0D0D0D", margin:0 }}>לוח בקרה</h1>
         <div style={{ fontSize:13, color:"#767676", marginTop:2 }}>מעקב סטטוס יועצים, הגדלות וחשבונות בכל הפרויקטים</div>
       </div>
 
@@ -6216,11 +6223,11 @@ function ProjectNumber({ value, onChange }) {
     <input autoFocus value={val} onChange={e=>setVal(e.target.value)}
       onBlur={save} onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")setEditing(false);}}
       placeholder="מס׳ פרויקט"
-      style={{ fontSize:14, color:"#444444", background:"#F7F8FA", border:"1.5px solid #163356", borderRadius:4, padding:"3px 8px", fontFamily:"'Heebo',sans-serif", outline:"none", width:120, textAlign:"right" }} />
+      style={{ fontSize:12, color:"#444444", background:"#F7F8FA", border:"1.5px solid #163356", borderRadius:4, padding:"4px 8px", fontFamily:"'Heebo',sans-serif", outline:"none", width:120, textAlign:"right" }} />
   );
   return (
     <span onClick={()=>{setVal(value);setEditing(true);}}
-      style={{ fontSize:14, color: value?"#444444":"#D0D5DD", cursor:"pointer", paddingBottom:1 }}>
+      style={{ fontSize:12, color: value?"#444444":"#9A9A9A", cursor:"pointer", padding:"4px 8px", border:"1.5px solid #E2E5EA", borderRadius:4, background:"#F7F8FA", fontFamily:"'Heebo',sans-serif", display:"inline-block", lineHeight:1.4, whiteSpace:"nowrap" }}>
       {value || "מס׳ פרויקט"}
     </span>
   );
@@ -6234,13 +6241,13 @@ function EditableYear({ year, onChange }) {
       onChange={e => setVal(e.target.value)}
       onBlur={() => { if(val && String(val).length===4) onChange(Number(val)); setEditing(false); }}
       onKeyDown={e => { if(e.key==="Enter"){ if(val && String(val).length===4) onChange(Number(val)); setEditing(false); } if(e.key==="Escape") setEditing(false); }}
-      style={{ width:70, fontSize:13, color:"#767676", background:"#F0F2F5", border:"1px solid #D0D5DD", borderRadius:4, padding:"2px 7px", fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"center" }} />
+      style={{ width:70, fontSize:12, color:"#767676", background:"#F7F8FA", border:"1.5px solid #E2E5EA", borderRadius:4, padding:"4px 8px", fontFamily:"'Heebo',sans-serif", outline:"none", textAlign:"center" }} />
   );
   return (
     <span onClick={() => { setVal(year); setEditing(true); }}
-      style={{ fontSize:13, color:"#9A9A9A", cursor:"pointer" }}
+      style={{ fontSize:12, color:"#767676", cursor:"pointer", padding:"4px 8px", border:"1.5px solid #E2E5EA", borderRadius:4, background:"#F7F8FA", fontFamily:"'Heebo',sans-serif", display:"inline-block", lineHeight:1.4, whiteSpace:"nowrap" }}
       title="לחץ לעריכת שנה">
-      {year} ✎
+      {year}
     </span>
   );
 }
@@ -6248,25 +6255,25 @@ function EditableYear({ year, onChange }) {
 function EditableName({ name, onChange, readOnly }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(name);
-  if (readOnly) return <span style={{ fontSize:18, fontWeight:900, color:"#0D0D0D" }}>{name}</span>;
+  if (readOnly) return <span style={{ fontSize:24, fontWeight:900, color:"#0D0D0D" }}>{name}</span>;
   if (editing) return (
     <input autoFocus type="text" value={val}
       onChange={e => setVal(e.target.value)}
       onBlur={() => { if(val.trim()) onChange(val.trim()); setEditing(false); }}
       onKeyDown={e => { if(e.key==="Enter"){ if(val.trim()) onChange(val.trim()); setEditing(false); } if(e.key==="Escape") setEditing(false); }}
-      style={{ fontSize:18, fontWeight:900, color:"#0D0D0D", background:"#F0F2F5", border:"1px solid #D0D5DD", borderRadius:4, padding:"2px 8px", fontFamily:"'Heebo',sans-serif", outline:"none", minWidth:200 }} />
+      style={{ fontSize:24, fontWeight:900, color:"#0D0D0D", background:"#F0F2F5", border:"1px solid #D0D5DD", borderRadius:4, padding:"2px 8px", fontFamily:"'Heebo',sans-serif", outline:"none", minWidth:200 }} />
   );
   return (
     <span onClick={() => { setVal(name); setEditing(true); }}
-      style={{ fontSize:18, fontWeight:900, color:"#0D0D0D", cursor:"pointer" }}
+      style={{ fontSize:24, fontWeight:900, color:"#0D0D0D", cursor:"pointer" }}
       title="לחץ לעריכת שם הפרויקט">
-      {name} <span style={{ color:"#9A9A9A", fontWeight:400 }}>✎</span>
+      {name}
     </span>
   );
 }
 
 // ── Tab: פתיחת פרויקט ────────────────────────────────────────────────────────
-function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows, projectName, projectNumber, planningManager, companyName, quotesRows, suppliers }) {
+function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows, projectName, projectNumber, quotesRows, suppliers, companies, companyId, onCompanyChange, managers, planningManagerId, executionManagerId, onManagerChange, isAdmin }) {
   const upd = (k, v) => setData(prev => ({ ...(prev||{}), [k]: v }));
   const updMulti = patch => setData(prev => ({ ...(prev||{}), ...patch }));
   const updBudget = (k, v) => setBudgetState(prev => ({ ...(prev||{}), [k]: v }));
@@ -6274,6 +6281,10 @@ function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows, pro
   const contractorEst = Number(String(data?.contractorEst||"").replace(/,/g,""));
   const devPct = (statsRows||[]).filter(r=>(r.field||"").includes("פיתוח")||(r.field||"").includes("נוף")).reduce((s,r)=>s+Number(r.pct||0),0);
   const archBase = contractorEst ? contractorEst - contractorEst * devPct / 100 : 0;
+
+  const planningMgrs  = (managers||[]).filter(m => m.role === "planning");
+  const executionMgrs = (managers||[]).filter(m => m.role === "execution");
+  const selectStyle = { width:"100%", border:"1px solid #E2E5EA", background:"#fff", textAlign:"right", direction:"rtl", fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", color:"#0D0D0D", borderRadius:4, padding:"5px 8px", boxSizing:"border-box", cursor: isAdmin ? "pointer" : "default" };
 
   const rows = [
     { key:"address",         label:"כתובת",                              type:"text" },
@@ -6295,8 +6306,38 @@ function OpeningTab({ data, setData, budgetState, setBudgetState, statsRows, pro
     <div style={{ maxWidth:700 }}>
       <table style={{ width:"100%", borderCollapse:"collapse", border:"1px solid #E2E5EA", borderRadius:8, overflow:"hidden" }}>
         <tbody>
+          {/* חברה עירונית */}
+          <tr style={{ background:"#fff" }}>
+            <td style={{ padding:"10px 16px", textAlign:"right", color:"#3A3A3A", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", borderLeft:"1px solid #E2E5EA", verticalAlign:"middle" }}>חברה עירונית</td>
+            <td style={{ padding:"10px 16px", textAlign:"right", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", verticalAlign:"middle" }}>
+              <select value={companyId||""} disabled={!isAdmin} onChange={isAdmin ? e => onCompanyChange(e.target.value) : undefined} style={selectStyle}>
+                <option value="">בחר חברה עירונית</option>
+                {(companies||[]).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </td>
+          </tr>
+          {/* מנהל תכנון */}
+          <tr style={{ background:"#F7F8FA" }}>
+            <td style={{ padding:"10px 16px", textAlign:"right", color:"#3A3A3A", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", borderLeft:"1px solid #E2E5EA", verticalAlign:"middle" }}>מנהל תכנון</td>
+            <td style={{ padding:"10px 16px", textAlign:"right", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", verticalAlign:"middle" }}>
+              <select value={planningManagerId||""} disabled={!isAdmin} onChange={isAdmin ? e => onManagerChange("planning", e.target.value) : undefined} style={selectStyle}>
+                <option value="">בחר מנהל תכנון</option>
+                {planningMgrs.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </td>
+          </tr>
+          {/* מנהל ביצוע */}
+          <tr style={{ background:"#fff" }}>
+            <td style={{ padding:"10px 16px", textAlign:"right", color:"#3A3A3A", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", borderLeft:"1px solid #E2E5EA", verticalAlign:"middle" }}>מנהל ביצוע</td>
+            <td style={{ padding:"10px 16px", textAlign:"right", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", verticalAlign:"middle" }}>
+              <select value={executionManagerId||""} disabled={!isAdmin} onChange={isAdmin ? e => onManagerChange("execution", e.target.value) : undefined} style={selectStyle}>
+                <option value="">בחר מנהל ביצוע</option>
+                {executionMgrs.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </td>
+          </tr>
           {rows.map((r, i) => (
-            <tr key={r.key} style={{ background: i%2===0?"#fff":"#F7F8FA" }}>
+            <tr key={r.key} style={{ background: (i+1)%2===0?"#fff":"#F7F8FA" }}>
               <td style={{ padding:"10px 16px", textAlign:"right", color:"#3A3A3A", fontSize:13, width:"50%", borderBottom:"1px solid #E2E5EA", borderLeft:"1px solid #E2E5EA", verticalAlign:"middle", fontWeight: r.key==="archBase"?400:400 }}>
                 {r.label}
               </td>
@@ -6437,7 +6478,19 @@ function AppInner({ currentUser, userRole, setUserRole }) {
   const [openInvoiceId, setOpenInvoiceId] = useState(null);
   const [showModal,    setShowModal]    = useState(false);
   const [projSearch,        setProjSearch]        = useState("");
-  const [projStatusFilter,  setProjStatusFilter]  = useState("");
+  const [projStatusFilters, setProjStatusFilters] = useState([]);
+  const [showStatusDrop,   setShowStatusDrop]   = useState(false);
+  const statusDropRef = React.useRef(null);
+  useEffect(() => {
+    if (!showStatusDrop) return;
+    const handler = (e) => {
+      if (statusDropRef.current && !statusDropRef.current.contains(e.target)) {
+        setShowStatusDrop(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStatusDrop]);
   const [deleteConfirmProj, setDeleteConfirmProj] = useState(null);
   const [newPForm,     setNewPForm]     = useState({ name:"", companyId:"", year:new Date().getFullYear() });
   const [toast,        setToast]        = useState(null);
@@ -7021,7 +7074,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
         <div style={{ padding:"12px 10px 4px", display:"flex", flexDirection:"column", gap:2 }}>
           {[
             { label:"לוח בקרה",          icon:"📊", action:()=>{ setGlobalPage("dashboard"); setSelectedProj(null); setShowStats(false); }, active: !selectedProj && globalPage==="dashboard" },
-            { label:"פרויקטים",           icon:"📁", action:()=>{ setSelectedProj(null); setGlobalPage(null); setShowStats(false); },          active: !selectedProj && !globalPage && !showStats, big:true },
+            { label:"פרויקטים",           icon:"📁", action:()=>{ setSelectedProj(null); setGlobalPage(null); setShowStats(false); },          active: !selectedProj && !globalPage && !showStats },
             { label:"מידע ראשי",          icon:"📋", action:()=>{ setGlobalPage("maininfo"); setSelectedProj(null); setShowStats(false); },   active: globalPage==="maininfo" },
             { label:"רשימת ספקים",        icon:"🗂️", action:()=>{ setGlobalPage("suppliers"); setSelectedProj(null); setShowStats(false); },  active: globalPage==="suppliers" },
             { label:"חברות עירוניות",     icon:"🏛️", action:()=>{ setGlobalPage("companies"); setSelectedProj(null); setShowStats(false); },  active: globalPage==="companies" },
@@ -7031,14 +7084,14 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             { label:"השוואת עלויות",      icon:"⚖️", action:()=>{ setGlobalPage("costs"); setSelectedProj(null); setShowStats(false); },       active: globalPage==="costs" },
           ].map(({label, icon, action, active, big}) => (
             <div key={label} className="hov-side" onClick={action}
-              style={{ display:"flex", alignItems:"center", gap:9, padding: big?"9px 12px":"8px 12px", borderRadius:0, cursor:"pointer",
-                fontSize: big?14:13, fontWeight: active?600:400,
+              style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderRadius:0, cursor:"pointer",
+                fontSize: 13, fontWeight: active?600:400,
                 color: active?"#0B1F3A":"#767676",
                 background: active?"#EAF1FA":"transparent",
                 borderRight: active?"2px solid #0E7C6A":"2px solid transparent",
                 borderLeft:"none", borderTop:"none", borderBottom:"none",
                 transition:"all .15s" }}>
-              <span style={{ fontSize: big?17:16 }}>{icon}</span> {label}
+              <span style={{ fontSize: 16 }}>{icon}</span> {label}
             </div>
           ))}
         </div>
@@ -7195,32 +7248,55 @@ function AppInner({ currentUser, userRole, setUserRole }) {
           <div className="fade" style={{ padding:"34px 38px" }}>
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:11, color:"#767676", fontWeight:700, letterSpacing:3, marginBottom:4 }}>DASHBOARD</div>
-              <h1 style={{ fontSize:26, fontWeight:900, color:"#0D0D0D" }}>פרויקטים</h1>
+              <h1 style={{ fontSize:24, fontWeight:900, color:"#0D0D0D", margin:0 }}>פרויקטים</h1>
             </div>
 
-            <Card style={{ padding:0, overflow:"hidden" }}>
-              <div style={{ padding:"14px 22px", borderBottom:"1px solid #E2E5EA", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+            <Card style={{ padding:0, overflow:"visible" }}>
+              <div style={{ padding:"14px 22px", borderBottom:"1px solid #E2E5EA", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", position:"relative", zIndex:100 }}>
                 <div style={{ position:"relative", flex:1, minWidth:200 }}>
                   <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#9A9A9A", fontSize:15 }}>🔍</span>
                   <input
                     value={projSearch} onChange={e => setProjSearch(e.target.value)}
                     placeholder="חיפוש לפי שם פרויקט או חברה עירונית..."
-                    style={{ width:"100%", padding:"8px 34px 8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
-                    onFocus={e=>e.target.style.borderColor="#0B1F3A"} onBlur={e=>e.target.style.borderColor="#E2E5EA"}
+                    style={{ width:"100%", padding:"8px 34px 8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", boxSizing:"border-box" }}
                   />
                 </div>
-                <select value={projStatusFilter} onChange={e => setProjStatusFilter(e.target.value)}
-                  style={{ padding:"8px 12px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#fff", color: projStatusFilter ? "#0D0D0D" : "#767676", fontWeight: projStatusFilter ? 700 : 400, cursor:"pointer", direction:"rtl" }}>
-                  <option value="">כל הסטטוסים</option>
-                  {PROJ_STATUSES_MAIN.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <div ref={statusDropRef} style={{ position:"relative", minWidth:150, zIndex:10 }}>
+                  <button onClick={() => setShowStatusDrop(v=>!v)}
+                    style={{ width:"100%", padding:"8px 12px", border:"1.5px solid #0B1F3A", borderRadius:4, fontSize:13, fontFamily:"'Heebo',sans-serif", background:"#fff", color:projStatusFilters.length>0?"#0B1F3A":"#767676", fontWeight:projStatusFilters.length>0?700:400, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:6, whiteSpace:"nowrap" }}>
+                    {projStatusFilters.length>0 ? `סטטוס (${projStatusFilters.length})` : "סטטוס"}
+                    <span style={{ fontSize:10 }}>▾</span>
+                  </button>
+                  {showStatusDrop && (
+                    <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, left:0, background:"#fff", border:"1.5px solid #E2E5EA", borderRadius:4, boxShadow:"0 8px 24px rgba(0,0,0,0.1)", zIndex:300, padding:"4px 0", direction:"rtl" }}>
+                      {PROJ_STATUSES_MAIN.map(s => {
+                        const active = projStatusFilters.includes(s);
+                        return (
+                          <div key={s} onMouseDown={e => { e.preventDefault(); setProjStatusFilters(active ? projStatusFilters.filter(x=>x!==s) : [...projStatusFilters,s]); }}
+                            style={{ padding:"8px 12px", cursor:"pointer", display:"flex", alignItems:"center", gap:8, fontSize:13, fontFamily:"'Heebo',sans-serif", color:"#0D0D0D", background:active?"#F7F8FA":"#fff" }}
+                            onMouseOver={e=>e.currentTarget.style.background="#F7F8FA"}
+                            onMouseOut={e=>e.currentTarget.style.background=active?"#F7F8FA":"#fff"}>
+                            <input type="checkbox" checked={active} readOnly style={{ cursor:"pointer", accentColor:"#0B1F3A", width:14, height:14, flexShrink:0, pointerEvents:"none" }} />
+                            {s}
+                          </div>
+                        );
+                      })}
+                      {projStatusFilters.length>0 && (
+                        <div onMouseDown={e => { e.preventDefault(); setProjStatusFilters([]); setShowStatusDrop(false); }}
+                          style={{ padding:"7px 14px", cursor:"pointer", fontSize:12, color:"#9A9A9A", borderTop:"1px solid #F0F2F5", fontFamily:"'Heebo',sans-serif" }}>
+                          ✕ נקה סינון
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <PrimaryButton small onClick={() => setShowModal(true)}>+ פרויקט חדש</PrimaryButton>
               </div>
               {sortedVisibleProjects.length === 0 && <div style={{ padding:32, textAlign:"right", color:"#9A9A9A" }}>אין פרויקטים עדיין</div>}
               {(() => {
                 const q = projSearch.trim().toLowerCase();
                 const filtered = sortedVisibleProjects.filter(p => {
-                  if (projStatusFilter && p.status !== projStatusFilter) return false;
+                  if (projStatusFilters.length > 0 && !projStatusFilters.includes(p.status)) return false;
                   if (!q) return true;
                   const companyName = companies.find(c => String(c.id) === String(allData[p.id]?.companyId))?.name || "";
                   return p.name.toLowerCase().includes(q) || companyName.toLowerCase().includes(q);
@@ -7237,7 +7313,9 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                     </div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <Badge color={sc(p.status)}>{p.status}</Badge>
+                    <div style={{ minWidth:72, display:"flex", justifyContent:"flex-start" }}>
+                      {p.status && <Badge color={sc(p.status)}>{p.status}</Badge>}
+                    </div>
                     {isAdmin && <button className="del-proj-btn" onClick={e => { e.stopPropagation(); setDeleteConfirmProj(p); }}
                       style={{ background:"#F8EDED", color:"#5C2020", border:"1px solid #F0B8B8", borderRadius:4, padding:"5px 8px", fontSize:14, cursor:"pointer", lineHeight:1 }} title="מחק פרויקט">🗑</button>}
                     <span style={{ color:"#D0D5DD", fontSize:18 }}>‹</span>
@@ -7286,29 +7364,10 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             <div style={{ position:"sticky", top:0, zIndex:100, background:"#fff" }}>
             {/* Header bar */}
             {(() => {
-              const projCompanyId = allData[selectedProj.id]?.companyId || "";
-              const projCompany   = companies.find(c => String(c.id) === String(projCompanyId));
-              const setCompanyId  = cid => setAllData(prev => ({
-                ...prev,
-                [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), companyId: cid }
-              }));
-              const projPlanningMgrId  = allData[selectedProj.id]?.planningManagerId  || "";
-              const projExecutionMgrId = allData[selectedProj.id]?.executionManagerId || "";
-              const projUnitMgrId      = allData[selectedProj.id]?.unitManagerId      || "";
-              const projDomainMgrId    = allData[selectedProj.id]?.domainManagerId    || "";
-              const projTendersMgrId   = allData[selectedProj.id]?.tendersManagerId   || "";
-              const setMgrField = (fields) => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), ...fields } }));
-              const planningMgrs  = managers.filter(m => m.role === "planning");
-              const executionMgrs = managers.filter(m => m.role === "execution");
-              const unitMgrs      = managers.filter(m => m.role === "unit");
-              const domainMgrs    = managers.filter(m => m.role === "domain");
-              const tendersMgrs   = managers.filter(m => m.role === "tenders");
-              const mgr = id => managers.find(m => String(m.id) === String(id));
-              const mgrSelectStyle = { padding:"4px 8px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:12, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#0D0D0D", outline:"none", cursor:isAdmin?"pointer":"default", maxWidth:145, direction:"rtl" };
               return (
                 <div style={{ background:"#fff", borderBottom:"1px solid #E2E5EA", direction:"rtl" }}>
                   {/* שם פרויקט — שורה עליונה */}
-                  <div style={{ padding:"8px 20px 6px", borderBottom:"1px solid #F0F1F4" }}>
+                  <div style={{ padding:"14px 24px", borderBottom:"1px solid #F0F1F4", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                     <EditableName
                       name={selectedProj.name}
                       onChange={isAdmin ? (nm => {
@@ -7317,9 +7376,14 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                       }) : (() => {})}
                       readOnly={!isAdmin}
                     />
+                    {/* ייצוא — צד שמאל */}
+                    <button onClick={() => exportProjectToExcel(selectedProj)} className="allow-readonly"
+                      style={{ background:"#EFF7F3", border:"1px solid #C6E8D4", borderRadius:4, padding:"6px 14px", fontSize:13, color:"#1C4532", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, whiteSpace:"nowrap", flexShrink:0 }}>
+                      📥 ייצוא לאקסל
+                    </button>
                   </div>
                   {/* פרטי פרויקט — שורה שנייה */}
-                  <div style={{ padding:"6px 20px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <div style={{ padding:"8px 24px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                   <div style={{ width:1, height:22, background:"#E2E5EA" }} />
                   {/* מספר פרויקט */}
                   <ProjectNumber
@@ -7337,65 +7401,6 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                     }) : (()=>{})}
                     readOnly={!isAdmin}
                   />
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* חברה עירונית */}
-                  <select value={projCompanyId} onChange={isAdmin?e=>setCompanyId(e.target.value):undefined}
-                    disabled={!isAdmin}
-                    style={{ padding:"4px 8px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:12, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#767676", outline:"none", cursor:isAdmin?"pointer":"default", maxWidth:140, direction:"rtl" }}>
-                    <option value="">חברה עירונית</option>
-                    {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* מנהל תכנון */}
-                  <select value={projPlanningMgrId} disabled={!isAdmin}
-                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ planningManagerId:e.target.value, planningManager:m?.name||"", planningManagerEmail:m?.email||"" }); }:undefined}
-                    style={mgrSelectStyle}>
-                    <option value="">מנהל תכנון</option>
-                    {planningMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* מנהל ביצוע */}
-                  <select value={projExecutionMgrId} disabled={!isAdmin}
-                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ executionManagerId:e.target.value, executionManager:m?.name||"", executionManagerEmail:m?.email||"" }); }:undefined}
-                    style={mgrSelectStyle}>
-                    <option value="">מנהל ביצוע</option>
-                    {executionMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* מנהל יחידה */}
-                  <select value={projUnitMgrId} disabled={!isAdmin}
-                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ unitManagerId:e.target.value, unitManager:m?.name||"", unitManagerEmail:m?.email||"" }); }:undefined}
-                    style={mgrSelectStyle}>
-                    <option value="">מנהל יחידה</option>
-                    {unitMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* מנהל תחום */}
-                  <select value={projDomainMgrId} disabled={!isAdmin}
-                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ domainManagerId:e.target.value, domainManager:m?.name||"", domainManagerEmail:m?.email||"" }); }:undefined}
-                    style={mgrSelectStyle}>
-                    <option value="">מנהל תחום</option>
-                    {domainMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* מנהל מכרזים */}
-                  <select value={projTendersMgrId} disabled={!isAdmin}
-                    onChange={isAdmin?e=>{ const m=mgr(e.target.value); setMgrField({ tendersManagerId:e.target.value, tendersManager:m?.name||"", tendersManagerEmail:m?.email||"" }); }:undefined}
-                    style={mgrSelectStyle}>
-                    <option value="">מנהל מכרזים</option>
-                    {tendersMgrs.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <div style={{ width:1, height:22, background:"#E2E5EA" }} />
-                  {/* ייצוא */}
-                  <button onClick={() => exportProjectToExcel(selectedProj)} className="allow-readonly"
-                    style={{ background:"#EFF7F3", border:"1px solid #C6E8D4", borderRadius:8, padding:"5px 12px", fontSize:12, color:"#1C4532", cursor:"pointer", fontFamily:"'Heebo',sans-serif", fontWeight:600, whiteSpace:"nowrap" }}>
-                    📥 ייצוא לאקסל
-                  </button>
-                  {/* חזרה */}
-                  <button onClick={() => setSelectedProj(null)} className="allow-readonly"
-                    style={{ background:"#F0F2F5", border:"none", borderRadius:8, padding:"5px 12px", fontSize:12, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif", whiteSpace:"nowrap" }}>
-                    → חזרה
-                  </button>
                   </div>
                 </div>
               );
@@ -7437,10 +7442,22 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 statsRows={statsRows}
                 projectName={selectedProj.name||""}
                 projectNumber={allData[selectedProj.id]?.projectNumber||""}
-                planningManager={allData[selectedProj.id]?.planningManager||""}
-                companyName={companies.find(c=>String(c.id)===String(allData[selectedProj.id]?.companyId))?.name||""}
                 quotesRows={getData(selectedProj.id,"quotes")}
                 suppliers={suppliers}
+                companies={companies}
+                companyId={allData[selectedProj.id]?.companyId||""}
+                onCompanyChange={cid => setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), companyId: cid } }))}
+                managers={managers}
+                planningManagerId={allData[selectedProj.id]?.planningManagerId||""}
+                executionManagerId={allData[selectedProj.id]?.executionManagerId||""}
+                onManagerChange={(role, id) => {
+                  const m = managers.find(m => String(m.id) === String(id));
+                  const fields = role === "planning"
+                    ? { planningManagerId: id, planningManager: m?.name||"", planningManagerEmail: m?.email||"" }
+                    : { executionManagerId: id, executionManager: m?.name||"", executionManagerEmail: m?.email||"" };
+                  setAllData(prev => ({ ...prev, [selectedProj.id]: { ...(prev[selectedProj.id]||makeProjectData()), ...fields } }));
+                }}
+                isAdmin={isAdmin}
               />}
               {activeTab === "quotes"      && <QuotesTab      rows={getData(selectedProj.id,"quotes")}      setRows={makeTabSetter(selectedProj.id,"quotes")} highlightFieldId={highlightFieldId} suppliers={suppliers} budgetState={allData[selectedProj.id]?.budgetState||{}} openingData={allData[selectedProj.id]?.openingData||{}} statsRows={statsRows} projectName={selectedProj.name||""} projectNumber={allData[selectedProj.id]?.projectNumber||""} companyName={companies.find(c=>String(c.id)===String(allData[selectedProj.id]?.companyId))?.name||""} companyId={String(allData[selectedProj.id]?.companyId||"")} workScopes={workScopes} projectMeta={{ id:selectedProj.id, name:selectedProj.name, status:selectedProj.status, domainManager:allData[selectedProj.id]?.domainManager||"", domainManagerEmail:allData[selectedProj.id]?.domainManagerEmail||"", tendersManager:allData[selectedProj.id]?.tendersManager||"", tendersManagerEmail:allData[selectedProj.id]?.tendersManagerEmail||"" }} />}
               {activeTab === "consultants" && <ConsultantsTab rows={getData(selectedProj.id,"consultants")} setRows={makeTabSetter(selectedProj.id,"consultants")} quotesRows={getData(selectedProj.id,"quotes")} budgetState={allData[selectedProj.id]?.budgetState||{}} statsRows={statsRows} openConsultantId={openConsultantId} scrollToIncreaseId={scrollToIncreaseId} suppliers={suppliers} projectName={selectedProj.name} openingData={allData[selectedProj.id]?.openingData||{}} setOpeningData={od => setAllData(prev => ({...prev, [selectedProj.id]: {...(prev[selectedProj.id]||makeProjectData()), openingData: od}}))} projectMeta={{ id:selectedProj.id, name:selectedProj.name, status:selectedProj.status, unitManager:allData[selectedProj.id]?.unitManager||"", unitManagerEmail:allData[selectedProj.id]?.unitManagerEmail||"" }} />}
@@ -7659,7 +7676,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 <div>
                   <div style={{ fontSize:12, color:"#767676", fontWeight:600, marginBottom:5, textAlign:"right" }}>חברה עירונית</div>
                   <select value={newPForm.companyId||""} onChange={e=>setNewPForm({...newPForm,companyId:e.target.value})}
-                    style={{ width:"100%", padding:"8px 11px", border:"1.5px solid #E2E5EA", borderRadius:8, fontSize:14, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#0D0D0D", outline:"none", direction:"rtl" }}>
+                    style={{ width:"100%", padding:"8px 11px", border:"1.5px solid #E2E5EA", borderRadius:4, fontSize:14, fontFamily:"'Heebo',sans-serif", background:"#F7F8FA", color:"#0D0D0D", outline:"none", direction:"rtl" }}>
                     <option value="">-- לא נבחר --</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -7670,7 +7687,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
             <div style={{ display:"flex", gap:10, marginTop:18 }}>
               <PrimaryButton onClick={addProject}>צור פרויקט</PrimaryButton>
               <button onClick={() => setShowModal(false)}
-                style={{ flex:1, background:"#F0F2F5", border:"none", borderRadius:4, padding:"9px 20px", fontSize:14, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+                style={{ flex:1, background:"#F0F2F5", border:"1.5px solid transparent", borderRadius:4, padding:"8px 20px", fontSize:14, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
                 ביטול
               </button>
             </div>
@@ -7742,7 +7759,7 @@ function AppInner({ currentUser, userRole, setUserRole }) {
                 document.execCommand("copy");
                 notify("✅ הועתק! כעת הדביקי בפנקס רשימות ושמרי");
               }}
-              style={{ background:"#0B1F3A", color:"#fff", border:"none", borderRadius:4, padding:"9px 20px", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
+              style={{ background:"#0B1F3A", color:"#fff", border:"1.5px solid transparent", borderRadius:4, padding:"8px 18px", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
               📋 העתק הכל
             </button>
             <textarea
