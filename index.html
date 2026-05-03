@@ -2595,18 +2595,18 @@ function FlatpickrDate({ value, onChange, style }) {
 function NumericCell({ value, baseAmt, mode, onCommit, style, placeholder }) {
   const [focused, setFocused] = React.useState(false);
   // raw = plain number string for editing; displayed = formatted with commas
-  const rawRef = React.useRef(String(value||""));
+  const rawRef  = React.useRef(String(value||""));
+  const dirtyRef = React.useRef(false); // true only when user actually typed
   const [display, setDisplay] = React.useState(String(value||""));
 
-  // format a number string with commas
+  // format a number string with commas, up to 1 decimal place for display
   const fmtNum = v => {
     const n = parseFloat(v);
     if (isNaN(n)) return v;
-    const hasDecimal = n !== Math.floor(n);
-    return n.toLocaleString("he-IL", { minimumFractionDigits: hasDecimal ? 2 : 0, maximumFractionDigits: 2 });
+    return n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
   };
 
-  // sync external value changes
+  // sync external value changes (only when not focused)
   React.useEffect(() => {
     if (!focused) {
       rawRef.current = String(value||"");
@@ -2616,6 +2616,7 @@ function NumericCell({ value, baseAmt, mode, onCommit, style, placeholder }) {
 
   const handleFocus = () => {
     setFocused(true);
+    dirtyRef.current = false; // reset — user hasn't typed yet
     // show raw number without commas for editing
     setDisplay(rawRef.current);
   };
@@ -2623,21 +2624,29 @@ function NumericCell({ value, baseAmt, mode, onCommit, style, placeholder }) {
   const handleChange = e => {
     setDisplay(e.target.value);
     rawRef.current = e.target.value;
+    dirtyRef.current = true; // user actually typed
   };
 
   const handleBlur = () => {
     setFocused(false);
     const num = parseFloat(rawRef.current);
-    if (isNaN(num)) { setDisplay(""); onCommit("", ""); return; }
-    const fixed = num.toFixed(2);
-    rawRef.current = fixed;
-    setDisplay(fmtNum(fixed));
+    if (isNaN(num)) {
+      setDisplay("");
+      if (dirtyRef.current) onCommit("", "");
+      return;
+    }
+    // Store exact value — no rounding
+    const stored = String(num);
+    rawRef.current = stored;
+    setDisplay(fmtNum(stored));
+    // Only update sibling field when user actually edited this field
+    if (!dirtyRef.current) return;
     if (mode === "amount") {
-      const pct = baseAmt ? (num / baseAmt * 100).toFixed(2) : "";
-      onCommit(fixed, pct);
+      const pct = baseAmt ? String(num / baseAmt * 100) : "";
+      onCommit(stored, pct);
     } else {
-      const amt = baseAmt ? (num / 100 * baseAmt).toFixed(2) : "";
-      onCommit(fixed, amt);
+      const amt = baseAmt ? String(num / 100 * baseAmt) : "";
+      onCommit(stored, amt);
     }
   };
 
