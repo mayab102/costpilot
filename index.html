@@ -2194,6 +2194,20 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
     if (typeof window !== "undefined" && window.__costpilotReadOnly) return; // צפייה-בלבד
     const newEst = Number(String(newEstAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
 
+    // אם ליועץ יש הגדלת BIM — עדכון האומדן פותח אוטומטית גם הגדלת BIM נוספת
+    // על השינוי (זהה לחישוב בטאב מכרז: תוספת × planningPct/100 × 0.15).
+    const buildBimSupplement = (supplement) => {
+      if (!bimEnabled || planningPct <= 0) return null;
+      const bimSupp = Math.round(supplement * planningPct / 100 * 0.15);
+      if (!bimSupp) return null;
+      return {
+        reason: "תוספת הגדלה עבור BIM לאחר עדכון אומדן",
+        amount: String(bimSupp), date: estDate, planOnly: true,
+        id: "bim-" + Date.now(), createdAt: Date.now(),
+        sentToManager: false, sentToMunicipality: false, approvedIncrease: false,
+      };
+    };
+
     // ─── isOtherPct: שמור אומדן פרק ישיר ב-sectionEstHistory ───
     if (isOtherPct && otherCalc && !otherCalc.noProfPct) {
       const newSect = Number(String(newSectAmount).replace(/[,\s]/g,"").replace(/[^\d.]/g,""));
@@ -2215,8 +2229,11 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
         id: Date.now(), createdAt: Date.now(),
         sentToManager:false, sentToMunicipality:false, approvedIncrease:false,
       } : null;
-      const newIncreases = newIncrease ? [...increases, newIncrease] : increases;
-      if (newIncrease) setIncreases(newIncreases);
+      const bimIncrease = newIncrease ? buildBimSupplement(supplement) : null;
+      const newIncreases = [...increases,
+        ...(newIncrease ? [newIncrease] : []),
+        ...(bimIncrease ? [bimIncrease] : [])];
+      if (newIncrease || bimIncrease) setIncreases(newIncreases);
       onSave({ ...consultant, increases: newIncreases, contacts, exportNotes, [histKey]: history, ...(contractFee ? { contractFee } : {}) });
       setShowEstForm(false); setNewEstAmount(""); setNewSectAmount("");
       return;
@@ -2260,8 +2277,11 @@ function ConsultantModal({ consultant, onClose, onSave, budgetState, statsRows, 
       id: Date.now(), createdAt: Date.now(),
       sentToManager:false, sentToMunicipality:false, approvedIncrease:false,
     } : null;
-    const newIncreases = newIncrease ? [...increases, newIncrease] : increases;
-    if (newIncrease) setIncreases(newIncreases);
+    const bimIncrease = newIncrease ? buildBimSupplement(supplement) : null;
+    const newIncreases = [...increases,
+      ...(newIncrease ? [newIncrease] : []),
+      ...(bimIncrease ? [bimIncrease] : [])];
+    if (newIncrease || bimIncrease) setIncreases(newIncreases);
     onSave({ ...consultant, increases: newIncreases, contacts, exportNotes, [histKey]: history, ...(contractFee ? { contractFee } : {}) });
 
     setShowEstForm(false);
