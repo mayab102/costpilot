@@ -5125,13 +5125,13 @@ function TenderTab({ rows, setRows, quotesRows, consultantsRows, setConsultantsR
         {consultants.length === 0
           ? <div style={{ padding:32, color:"#9A9A9A", fontSize:13, textAlign:"right" }}>אין יועצים מאושרים בפרויקט</div>
           : (() => {
-              const W0=80, W1=130, WC=108;
+              const W0=80, W1=150, WC=140;
               const t1W = W0+W1+WC*4;
               const t2W = W0+W1+WC*(showDoc2?8:7);
               const thN = (bg,color,w=WC) => ({ ...thBase, background:bg, color, width:w });
               const thS = (color,w=WC) => ({ ...thBase, background:"#F7F8FA", color:"#3A3A3A", width:w });
               return (
-              <div style={{ padding:"10px 20px 20px", display:"flex", flexDirection:"column", gap:24, alignItems:"flex-start" }}>
+              <div style={{ padding:"10px 20px 20px", display:"flex", flexDirection:"column", gap:24, alignItems:"flex-start", maxWidth:"100%", overflowX:"auto" }}>
                 {/* Card 1: מצב קיים */}
                 <div style={{ background:"#fff", borderRadius:4, border:"1px solid #E2E5EA", overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.07)", display:"inline-block" }}>
                   <div style={{ padding:"9px 14px", background:"#EAF1FA", color:"#163356", fontWeight:700, fontSize:13, borderBottom:"1px solid #D4E4F4" }}>מצב קיים</div>
@@ -5150,7 +5150,7 @@ function TenderTab({ rows, setRows, quotesRows, consultantsRows, setConsultantsR
                       {consultants.map((c,i)=>(
                         <tr key={c.key} style={{ background:i%2===0?"#fff":"#F7F8FA" }}>
                           <td style={{ ...tdBase, fontWeight:600, color:"#3A3A3A" }}>{c.field}</td>
-                          <td style={{ ...tdBase, fontWeight:600, color:"#0D0D0D" }}>{c.name}<RatingBadge name={c.name} suppliers={suppliers} /></td>
+                          <td style={{ ...tdBase, fontWeight:600, color:"#0D0D0D" }}>{c.name}</td>
                           <td style={{ ...tdBase, color:"#444444" }}>{c.feePct!==null ? c.feePct+"%" : "סכום קבוע"}</td>
                           <td style={{ ...tdBase, color:"#444444" }}>{fmt(c.sectionEst)}</td>
                           <td style={{ ...tdBase, fontWeight:700 }}>{fmt(c.initialFee)}</td>
@@ -5327,11 +5327,11 @@ function ContractorTab({ rows, setRows, quotesRows, tenderRows, consultantsRows,
         {consultants.length === 0
           ? <div style={{ padding:32, color:"#9A9A9A", fontSize:13, textAlign:"right" }}>אין יועצים מאושרים בפרויקט</div>
           : (() => {
-              const W0=80, W1=130, WC=108;
+              const W0=80, W1=150, WC=140;
               const t1W = W0+W1+WC*5;
               const t2W = W0+W1+WC*7;
               return (
-              <div style={{ padding:"10px 20px 20px", display:"flex", flexDirection:"column", gap:24, alignItems:"flex-start" }}>
+              <div style={{ padding:"10px 20px 20px", display:"flex", flexDirection:"column", gap:24, alignItems:"flex-start", maxWidth:"100%", overflowX:"auto" }}>
               {/* Card 1: אומדן מעודכן לפי מכרז */}
               <div style={{ background:"#fff", borderRadius:10, border:"1px solid #C6E8D4", overflow:"hidden", boxShadow:"0 1px 4px #0001", display:"inline-block" }}>
                 <div style={{ padding:"9px 14px", background:"#EFF7F3", color:"#0C5749", fontWeight:700, fontSize:13, borderBottom:"1px solid #C6E8D4" }}>אומדן מעודכן לפי מכרז</div>
