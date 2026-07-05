@@ -665,6 +665,31 @@ function syncProjectData(projData) {
     result = { ...result, consultants: merged };
     changed = true;
   }
+
+  // ── 3. ניקוי שורות חשבון יתומות של הגדלות שנמחקו ─────────────────────────────
+  // מחיקת הגדלה מסירה אותה מהיועץ בלבד; שורות החשבון שלה (rowKey="i-"+id) נותרות
+  // יתומות וממשיכות להופיע כתזכורות בלוח הבקרה. מסירים אותן בשכבת הנתונים.
+  // ה-rowKey נחשב חוקי אם ה-id קיים בין ההגדלות (במיזוג הנוכחי או במקור) — כדי לא
+  // למחוק בטעות נתוני חשבון של הגדלה שרק "הוזזה" בלוגיקת המיזוג.
+  {
+    const accts = result.accounts || [];
+    if (accts.length > 0) {
+      const validIncKeys = new Set();
+      const collectInc = list => (list || []).forEach(c =>
+        (c.increases || []).forEach(x => validIncKeys.add("i-" + x.id)));
+      collectInc(result.consultants);
+      collectInc(projData.consultants);
+      const cleaned = accts.filter(r => {
+        const rk = String(r.rowKey || "");
+        return rk.startsWith("i-") ? validIncKeys.has(rk) : true;
+      });
+      if (cleaned.length !== accts.length) {
+        result = { ...result, accounts: cleaned };
+        changed = true;
+      }
+    }
+  }
+
   return changed ? result : projData;
 }
 
