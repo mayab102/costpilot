@@ -1,0 +1,90 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot-logo-full.png.png\" \"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/costpilot-logo-full.png\")",
+      "Bash(cp \"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot_logo_half_helmet_cropped.png\" \"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/costpilot_logo_half_helmet_cropped.png\")",
+      "Bash(\"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/full_b64.txt\")",
+      "Bash(\"C:/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/half_b64.txt\")",
+      "Bash(node:*)",
+      "Bash(winget upgrade:*)",
+      "Bash(grep -v \"//\")",
+      "Bash(python3:*)",
+      "Bash(cd /tmp)",
+      "Bash(unzip -p \"C:\\\\Users\\\\maya_b\\\\OneDrive - Kav Project\\\\Desktop\\\\AI\\\\קלוד קוד\\\\‏‏נספח מס' 3 - נוסח פנייה למתכנן יועץ על בסיס מחיר קבוע - כללי - אגרונום.docx\" word/document.xml)",
+      "Bash(unzip -p \"/c/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/‏‏נספח מס' 3 - נוסח פנייה למתכנן יועץ על בסיס מחיר קבוע - כללי - אגרונום.docx\" word/document.xml)",
+      "Bash(sed -n 's/.*<w:t[^>]*>\\\\\\([^<]*\\\\\\)<\\\\/w:t>/\\\\1\\\\n/gp' full_doc.xml)",
+      "Bash(sed 's/.*<w:t[^>]*>//g')",
+      "Read(//c/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/**)",
+      "Bash(awk 'NR>=7000 && NR<=7095' \"/c/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/index.html\")",
+      "Bash(awk 'NR>=6998 && NR<=7030' index.html)",
+      "Bash(ls -la *.png)",
+      "Bash(grep -v \"base64\\\\|//\")",
+      "Bash(awk 'NR>=5380 && NR<=5430' index.html)",
+      "Bash(awk 'NR>=5490 && NR<=5600' index.html)",
+      "Bash(awk 'NR>=5620 && NR<=5700' index.html)",
+      "Bash(awk 'NR>=5854 && NR<=5960' index.html)",
+      "Bash(awk 'NR>=6990 && NR<=7080' index.html)",
+      "Bash(awk 'NR>=393 && NR<=410' index.html)",
+      "Bash(grep -v \"label\\\\|header\\\\|fkey\\\\|null\\\\|base64\\\\|//\")",
+      "Bash(awk 'NR>=3630 && NR<=3660' index.html)",
+      "Bash(awk 'NR>=362 && NR<=412' index.html)",
+      "Bash(awk 'NR>=5560 && NR<=5580' index.html)",
+      "Bash(awk 'NR>=393 && NR<=415' index.html)",
+      "Bash(awk 'NR>=105 && NR<=165' index.html)",
+      "Bash(awk 'NR>=5385 && NR<=5400' index.html)",
+      "Bash(awk 'NR>=5594 && NR<=5616' index.html)",
+      "Bash(awk 'NR>=7330 && NR<=7410' index.html)",
+      "Read(//c/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/**)",
+      "Bash(python -c ':*)",
+      "Bash(pip install:*)",
+      "Bash(py -m pip install openpyxl -q)",
+      "Bash(py -c ':*)",
+      "Bash(py:*)",
+      "Bash(grep -o \".{0,200}proj_.*\")",
+      "Bash(gh run:*)",
+      "Bash(grep -n \"{ ....*contractFee\\\\|contractFee.*:\" index.html)",
+      "Bash(awk '/^function BudgetTab/,/^function [A-Z]/' \"/c/Users/maya_b/OneDrive - Kav Project/Desktop/AI/קלוד קוד/costpilot/index.html\")",
+      "Skill(update-config)",
+      "Bash(awk NR>=5758 && NR<=5800:*)",
+      "Bash(awk NR>=1460 && NR<=1520:*)",
+      "Bash(awk NR>=5780 && NR<=5792:*)",
+      "Bash(awk NR>=1466 && NR<=1476:*)",
+      "Bash(awk NR>=1280 && NR<=1420:*)",
+      "Bash(awk NR>=7480 && NR<=7650:*)",
+      "Bash(awk NR>=930 && NR<=1000:*)",
+      "Bash(awk NR>=1065 && NR<=1145:*)",
+      "Bash(awk NR>=7420 && NR<=7500:*)",
+      "Bash(awk 'NR>=1 && NR<=40')",
+      "Bash(awk NR>=7300 && NR<=7360:*)",
+      "Bash(awk NR>=966 && NR<=984:*)",
+      "Bash(awk NR>=7480 && NR<=7500:*)",
+      "Bash(awk NR>=7500 && NR<=7530:*)",
+      "Bash(awk NR>=7591 && NR<=7615:*)",
+      "Bash(awk NR>=7480 && NR<=7498:*)",
+      "Bash(awk NR>=7498 && NR<=7540:*)",
+      "Bash(awk NR>=7608 && NR<=7630:*)",
+      "Bash(awk NR>=7630 && NR<=7642:*)",
+      "Skill(run)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git push",
+            "if": "Bash(git commit*)",
+            "timeout": 60,
+            "statusMessage": "Pushing to GitHub..."
+          }
+        ]
+      }
+    ]
+  }
+}

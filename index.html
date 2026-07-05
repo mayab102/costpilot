@@ -827,6 +827,12 @@ const fmt = n => {
     maximumFractionDigits: 2
   });
 };
+// אחוז לתצוגה — עד 2 ספרות אחרי הנקודה, בלי אפסים מיותרים (למשל 33.33333 → 33.33)
+const fmtPct = p => {
+  const n = Number(p);
+  if (isNaN(n)) return p;
+  return String(Math.round(n * 100) / 100);
+};
 const fmtDate = s => { if (!s) return ""; const [y,m,d] = s.split("-"); return d && m && y ? `${d}/${m}/${y}` : s; };
 const toInputDate = s => { if (!s) return ""; if (s.includes("-")) return s; const [d,m,y] = s.split("/"); return y && m && d ? `${y}-${m}-${d}` : s; };
 const statusColor = s => ({
@@ -3119,6 +3125,14 @@ function NumericCell({ value, baseAmt, mode, onCommit, style, placeholder }) {
       if (dirtyRef.current) onCommit("", "");
       return;
     }
+    // אחוז לא יכול לחרוג מ-100% — חוסמים ומחזירים לערך הקודם
+    if (mode === "pct" && num > 100) {
+      alert("האחוז לא יכול לעלות על 100%");
+      const prev = String(value||"");
+      rawRef.current = prev;
+      setDisplay(prev ? fmtNum(prev) : "");
+      return;
+    }
     // Store exact value — no rounding
     const stored = String(num);
     rawRef.current = stored;
@@ -3327,7 +3341,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
     const totalAmt = invRows.reduce((s,r) => s + Number(r.amount||0), 0);
     const rowKeySet = new Set(invRows.map(r => r.rowKey));
     const subject = `פרויקט ${projectMeta.name} - אישור חשבון ליועץ- ${sel.field||""}`;
-    const headers = ["אבן דרך", "% מחוזה", "% מצטבר שולם", "% מבוקש בחשבון", "נדרש ", "שולם ", "יתרה ", "סכום חשבון "];
+    const headers = ["אבן דרך", "% מחוזה", "% מצטבר שולם", "% מבוקש בחשבון", "סכום בחוזה בש\"ח", "שולם ", "יתרה ", "סכום חשבון "];
     const outro = "נא אישורכם לחשבון.\n\nבברכה,\nמערכת CostPilot";
     // שורות אבני דרך רגילות
     const msRows = useSubItems ? [] : fieldMilestones.map(m => {
@@ -3340,9 +3354,9 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
       const thisRow = invRows.find(r => r.rowKey === key);
       return [
         m.name || "—",
-        `${m.pct}%`,
+        `${fmtPct(m.pct)}%`,
         `${paidPct}%`,
-        isCurrent && thisRow?.pct ? `${thisRow.pct}%` : "—",
+        isCurrent && thisRow?.pct ? `${fmtPct(thisRow.pct)}%` : "—",
         fmt(required),
         fmt(paid),
         fmt(Math.max(0, required - paid)),
@@ -3401,7 +3415,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
         (x.reason||"הגדלה"),
         "הגדלה",
         `${paidPct}%`,
-        isCurrent && thisRow?.pct ? `${thisRow.pct}%` : "—",
+        isCurrent && thisRow?.pct ? `${fmtPct(thisRow.pct)}%` : "—",
         fmt(required),
         fmt(paid),
         fmt(Math.max(0, required - paid)),
@@ -3639,7 +3653,7 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
               return (
                 <React.Fragment key={m.id}>
                   {/* Milestone row */}
-                  <tr style={{ borderBottom: isOpen?"none":"1px solid #F0F2F5", background: isNegIncrease?"#F0F2F5": isOpen?"#EAF1FA": isOverpaid?"#FEF3F3": (paid>0&&baseAmt>0&&paid>=baseAmt)?"#EFF7F3": i%2===0?"#fff":"#FAFBFC", cursor:"pointer", opacity: isNegIncrease?0.7:1 }}
+                  <tr style={{ borderBottom: isOpen?"none":"1px solid #F0F2F5", background: isNegIncrease?"#F0F2F5": isOpen?"#EAF1FA": isOverpaid?"#FEF3F3": (paid>0&&baseAmt>0&&Number(paidPct)>=100)?"#EFF7F3": i%2===0?"#fff":"#FAFBFC", cursor:"pointer", opacity: isNegIncrease?0.7:1 }}
                     onClick={()=>setExpanded(e=>({...e,[key]:!e[key]}))}>
                     <td style={{ padding:"10px 10px", textAlign:"right", color:"#3A3A3A", fontWeight:700, fontSize:16 }}>{isOpen?"∧":"+"}</td>
                     <td style={{ padding:"10px 14px", fontWeight:600, color:"#0D0D0D" }}>
@@ -3701,10 +3715,6 @@ function AccountsTab({ rows, setRows, quotesRows, consultantsRows, setConsultant
                                       <td style={{ padding:"4px 6px" }}>
                                         <NumericCell value={inv.pct||""} baseAmt={baseAmt} mode="pct"
                                           onCommit={(pct,amt) => {
-                                            if (Number(pct) > 100) {
-                                              alert("האחוז לא יכול לעלות על 100%");
-                                              return;
-                                            }
                                             const otherTotal = invs.filter(x=>x.id!==inv.id&&!x.rejected).reduce((s,x)=>s+Number(x.amount||0),0);
                                             if (baseAmt > 0 && otherTotal + Number(amt) > baseAmt + 0.01) {
                                               alert(`הסכום המחושב הכולל (${(otherTotal+Number(amt)).toLocaleString("he-IL")}) חורג מסכום האבן דרך / ההגדלה (${baseAmt.toLocaleString("he-IL")})`);
@@ -7850,14 +7860,14 @@ function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailS
                 else{res[key]={baseAmt:maxAmt,isOverpaid:false,isComplete:false};} }
             }); return res;
           })();
-          const headers = ["אבן דרך","% מחוזה","% מצטבר שולם","% מבוקש בחשבון","נדרש ","שולם ","יתרה ","סכום חשבון "];
+          const headers = ["אבן דרך","% מחוזה","% מצטבר שולם","% מבוקש בחשבון","סכום בחוזה בש\"ח","שולם ","יתרה ","סכום חשבון "];
           // pm/um
           const msRows = useSubItems ? [] : fieldMilestones.map(m => {
             const key="m-"+m.id; const required=msAlloc[key]?.baseAmt??(contractFee*Number(m.pct||0)/100);
             const paid=rowTotalFn(key); const isCurrent=rowKeySet.has(key);
             const paidPct=required>0?(paid/required*100).toFixed(1):"0";
             const thisRow=invRows.find(r=>r.rowKey===key);
-            return [m.name||"—",`${m.pct}%`,`${paidPct}%`,isCurrent&&thisRow?.pct?`${thisRow.pct}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
+            return [m.name||"—",`${fmtPct(m.pct)}%`,`${paidPct}%`,isCurrent&&thisRow?.pct?`${fmtPct(thisRow.pct)}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
           });
           const siRows = useSubItems ? selSubItems.map(it => {
             const key="s-"+it.id; const required=Number(it.amount||0); const paid=rowTotalFn(key);
@@ -7874,7 +7884,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailS
             const key="i-"+x.id; const required=Number(x.amount||0); const paid=rowTotalFn(key);
             const isCurrent=rowKeySet.has(key); const paidPct=required>0?(paid/required*100).toFixed(1):"0";
             const thisRow=invRows.find(r=>r.rowKey===key);
-            return [x.reason||"הגדלה","הגדלה",`${paidPct}%`,isCurrent&&thisRow?.pct?`${thisRow.pct}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
+            return [x.reason||"הגדלה","הגדלה",`${paidPct}%`,isCurrent&&thisRow?.pct?`${fmtPct(thisRow.pct)}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
           });
           const sumRequired=[...(hasNoStructure2?[contractFee]:[]),...(useSubItems?selSubItems.map(it=>Number(it.amount||0)):fieldMilestones.map(m=>msAlloc["m-"+m.id]?.baseAmt??(contractFee*Number(m.pct||0)/100))),...selIncreases.filter(x=>Number(x.amount||0)>0).map(x=>Number(x.amount||0))].reduce((s,v)=>s+v,0);
           const sumPaid=[...(hasNoStructure2?[basePaid2]:[]),...(useSubItems?selSubItems.map(it=>rowTotalFn("s-"+it.id)):fieldMilestones.map(m=>rowTotalFn("m-"+m.id))),...selIncreases.filter(x=>Number(x.amount||0)>0).map(x=>rowTotalFn("i-"+x.id))].reduce((s,v)=>s+v,0);
@@ -7989,13 +7999,13 @@ function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailS
                 else{res[key]={baseAmt:maxAmt,isOverpaid:false,isComplete:false};} }
             }); return res;
           })();
-          const headers = ["אבן דרך","% מחוזה","% מצטבר שולם","% מבוקש בחשבון","נדרש ","שולם ","יתרה ","סכום חשבון "];
+          const headers = ["אבן דרך","% מחוזה","% מצטבר שולם","% מבוקש בחשבון","סכום בחוזה בש\"ח","שולם ","יתרה ","סכום חשבון "];
           const msRows = useSubItems ? [] : fieldMilestones.map(m => {
             const key="m-"+m.id; const required=msAlloc[key]?.baseAmt??(contractFee*Number(m.pct||0)/100);
             const paid=rowTotalFn(key); const isCurrent=rowKeySet.has(key);
             const paidPct=required>0?(paid/required*100).toFixed(1):"0";
             const thisRow=invRows.find(r=>r.rowKey===key);
-            return [m.name||"—",`${m.pct}%`,`${paidPct}%`,isCurrent&&thisRow?.pct?`${thisRow.pct}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
+            return [m.name||"—",`${fmtPct(m.pct)}%`,`${paidPct}%`,isCurrent&&thisRow?.pct?`${fmtPct(thisRow.pct)}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
           });
           const siRows = useSubItems ? selSubItems.map(it => {
             const key="s-"+it.id; const required=Number(it.amount||0); const paid=rowTotalFn(key);
@@ -8012,7 +8022,7 @@ function DashboardPage({ allData, projects, onNavigate, milestones, onMarkEmailS
             const key="i-"+x.id; const required=Number(x.amount||0); const paid=rowTotalFn(key);
             const isCurrent=rowKeySet.has(key); const paidPct=required>0?(paid/required*100).toFixed(1):"0";
             const thisRow=invRows.find(r=>r.rowKey===key);
-            return [x.reason||"הגדלה","הגדלה",`${paidPct}%`,isCurrent&&thisRow?.pct?`${thisRow.pct}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
+            return [x.reason||"הגדלה","הגדלה",`${paidPct}%`,isCurrent&&thisRow?.pct?`${fmtPct(thisRow.pct)}%`:"—",fmt(required),fmt(paid),fmt(Math.max(0,required-paid)),isCurrent?fmt(Number(thisRow?.amount||0)):"—"];
           });
           const sumRequired=[...(hasNoStructureMI?[contractFee]:[]),...(useSubItems?selSubItems.map(it=>Number(it.amount||0)):fieldMilestones.map(m=>msAlloc["m-"+m.id]?.baseAmt??(contractFee*Number(m.pct||0)/100))),...selIncreases.filter(x=>Number(x.amount||0)>0).map(x=>Number(x.amount||0))].reduce((s,v)=>s+v,0);
           const sumPaid=[...(hasNoStructureMI?[basePaidMI]:[]),...(useSubItems?selSubItems.map(it=>rowTotalFn("s-"+it.id)):fieldMilestones.map(m=>rowTotalFn("m-"+m.id))),...selIncreases.filter(x=>Number(x.amount||0)>0).map(x=>rowTotalFn("i-"+x.id))].reduce((s,v)=>s+v,0);
