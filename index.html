@@ -1920,6 +1920,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                 {(c.subItems||[]).map(it => (
                   <tr key={it.id} style={{ background:"#F7F8FA", borderBottom:"1px solid #EAF1FA" }}>
                     <td style={{ padding:"6px 12px" }} />
+                    <td />
                     <td style={{ padding:"6px 12px" }}>
                       <input value={it.description} onChange={e=>updateSubItem(c.id,it.id,"description",e.target.value)}
                         placeholder="תיאור סעיף..." style={{ width:"100%", border:"1px solid #E2E5EA", borderRadius:4, padding:"4px 8px", fontSize:12, fontFamily:"'Heebo',sans-serif", outline:"none", background:"#fff", color:"#3A3A3A" }}
@@ -1948,7 +1949,7 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
                   </tr>
                 ))}
                 <tr style={{ background:"#F7F8FA", borderBottom:"1px solid #B8CEED" }}>
-                  <td />
+                  <td /><td />
                   <td style={{ padding:"4px 12px" }}>
                     <button onClick={()=>addSubItem(c.id)}
                       style={{ background:"none", border:"1px dashed #D0D5DD", borderRadius:4, padding:"2px 10px", fontSize:11, color:"#767676", cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>
