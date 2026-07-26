@@ -868,7 +868,8 @@ const statusColor = s => ({
 
 // ── התאמת שם יועץ לספק הקנוני מרשימת הספקים (עמיד לתווים נסתרים ולווריאציות שם) ──
 // normName מנקה תווי פורמט/כיווניות/רוחב-אפס ומאחד רווחים (קוד-תווים מספרי, בלי תווים נסתרים בקוד).
-const _normSupName = (s) => {
+// ניקוי טקסט לצורת-תצוגה קנונית: מסיר תווים נסתרים, מכווץ רווחים (כולל רווחים נסתרים) וגוזם קצה. משמר אותיות.
+const _cleanText = (s) => {
   let out = "";
   for (const ch of String(s || "")) {
     const cp = ch.codePointAt(0);
@@ -876,8 +877,10 @@ const _normSupName = (s) => {
     if (cp === 0x00A0 || cp === 0x202F || cp === 0x205F || cp === 0x3000 || (cp >= 0x2000 && cp <= 0x200A)) { out += " "; continue; }
     out += ch;
   }
-  return out.replace(/\s+/g, " ").trim().toLowerCase();
+  return out.replace(/\s+/g, " ").trim();
 };
+// מפתח השוואה: כמו _cleanText אך גם lowercase.
+const _normSupName = (s) => _cleanText(s).toLowerCase();
 const _supTokens = name => _normSupName(name).split(" ").filter(w => w.length >= 2);
 // שני שמות שקולים: זהים אחרי נרמול, או שקבוצת המילים של אחד מוכלת באחר (≥2 מילים).
 const namesEquivalent = (a, b) => {
@@ -1347,9 +1350,16 @@ function QuotesTab({ rows, setRows, suppliers, highlightFieldId, budgetState, op
     }
   }, []); // מיון פעם אחת בטעינה
 
-  const existingFieldNames = rows.map(r => r.fieldName);
-  const availableFields = [...new Set((suppliers||[]).flatMap(s => Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).filter(Boolean))]
-    .filter(f => !existingFieldNames.includes(f)).sort();
+  const existingFieldKeys = new Set(rows.map(r => _normSupName(r.fieldName)));
+  const availableFields = (() => {
+    const seen = new Map(); // normKey -> display
+    for (const f of (suppliers||[]).flatMap(s => Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).filter(Boolean)) {
+      const disp = _cleanText(f), key = _normSupName(f);
+      if (!disp || existingFieldKeys.has(key) || seen.has(key)) continue;
+      seen.set(key, disp);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b, "he"));
+  })();
 
   const addField = () => {
     if (!newFieldName.trim()) return;
@@ -1727,7 +1737,8 @@ function FieldGroup({ field, onDelete, onUpdateConsultants, onRename, suppliers,
     ));
   };
 
-  const fieldSuppliers = (suppliers||[]).filter(s => (Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).includes(field.fieldName));
+  const _fieldKey = _normSupName(field.fieldName);
+  const fieldSuppliers = (suppliers||[]).filter(s => (Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).some(f => _normSupName(f) === _fieldKey));
 
   const saveName = () => {
     if (tempName.trim()) onRename(tempName.trim());
@@ -5608,9 +5619,10 @@ function FieldMultiSelect({ selected, options, onChange }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
   const q        = input.trim().toLowerCase();
+  const qNorm    = _normSupName(input);
   const filtered = options.filter(o => !selected.includes(o) && o.toLowerCase().includes(q));
-  const canAdd   = q.length > 0 && !options.some(o => o.toLowerCase() === q) && !selected.some(s => s.toLowerCase() === q);
-  const add = val => { const v = val.trim(); if (!v || selected.includes(v)) return; onChange([...selected, v]); setInput(""); };
+  const canAdd   = qNorm.length > 0 && !options.some(o => _normSupName(o) === qNorm) && !selected.some(s => _normSupName(s) === qNorm);
+  const add = val => { const v = _cleanText(val); if (!v || selected.some(s => _normSupName(s) === _normSupName(v))) return; onChange([...selected, v]); setInput(""); };
   const remove = val => onChange(selected.filter(s => s !== val));
   return (
     <div ref={ref} style={{ position:"relative" }}>
@@ -6105,7 +6117,20 @@ function SuppliersPage({ suppliers, setSuppliers, professions, projects, allData
   const [sortDir,  setSortDir]  = useState(1);        // 1=א-ב, -1=ב-א
   const toggleSort = col => { if (sortCol === col) setSortDir(d => -d); else { setSortCol(col); setSortDir(1); } };
 
-  const allFields = [...new Set([...suppliers.flatMap(s => Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).filter(Boolean), ...(professions||[])])].sort();
+  const allFields = (() => {
+    const seen = new Map(); // normKey -> display
+    const raw = [
+      ...suppliers.flatMap(s => Array.isArray(s.field) ? s.field : (s.field ? [s.field] : [])).filter(Boolean),
+      ...(professions || [])
+    ];
+    for (const f of raw) {
+      const disp = _cleanText(f);
+      if (!disp) continue;
+      const key = _normSupName(f);
+      if (!seen.has(key)) seen.set(key, disp);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b, "he"));
+  })();
 
   const emptyContact = () => ({ id:Date.now(), contact:"", phone:"", phone2:"", email:"" });
   const validPhone = v => (v||"").replace(/\D/g,"").length >= 7;
@@ -6130,7 +6155,13 @@ function SuppliersPage({ suppliers, setSuppliers, professions, projects, allData
       if (c.phone2 && !validPhone(c.phone2)) { setEditError(`מספר נייד לא תקין עבור "${c.contact||"ללא שם"}"`); return; }
       if (c.email && !validEmail(c.email)) { setEditError(`כתובת מייל לא תקינה עבור "${c.contact||"ללא שם"}"`); return; }
     }
-    const dataToSave = { ...editData, contacts: cleanContacts };
+    const cleanFields = [];
+    const seenF = new Set();
+    for (const f of (editData.field || [])) {
+      const disp = _cleanText(f), k = _normSupName(f);
+      if (disp && !seenF.has(k)) { seenF.add(k); cleanFields.push(disp); }
+    }
+    const dataToSave = { ...editData, field: cleanFields, contacts: cleanContacts };
     if (editId === "new") setSuppliers(prev => [...prev, { ...dataToSave, id: Date.now() }]);
     else setSuppliers(prev => prev.map(s => s.id === editId ? { ...s, ...dataToSave } : s));
     closeModal();
