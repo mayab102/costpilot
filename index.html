@@ -5940,7 +5940,8 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
   (projects || []).forEach(proj => {
     (allData[proj.id]?.quotes || []).forEach(field => {
       (field.consultants || []).forEach(c => {
-        if (namesMatch(c.name)) {
+        // רק יועצים שאושרו — מי שרק הגיש הצעה ולא נבחר לא "עבד" בפרויקט ואסור שיוצג תחתיו.
+        if (c.approved && namesMatch(c.name)) {
           allMatched.push({ proj, fieldName: field.fieldName || "", consultant: c });
         }
       });
