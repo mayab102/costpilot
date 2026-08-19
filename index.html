@@ -5916,10 +5916,10 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
   const toggle = st => setCollapsed(p => ({ ...p, [st]: !p[st] }));
   const toFA = f => Array.isArray(f) ? f : (f ? [f] : []);
 
-  // התאמת שם עמידה לתווים נסתרים (מנתונים מיובאים) ולווריאציות שם:
+  // התאמת שם עמידה לתווים נסתרים (מנתונים מיובאים):
   // normName מסיר תווי פורמט/כיווניות/רוחב-אפס ומאחד רווחים (קוד-תווים מספרי, בלי תווים נסתרים בקוד).
-  // namesMatch מתאים אם השמות זהים, או שקבוצת המילים של אחד מוכלת באחר
-  // (למשל "קרן אור לי" מול "קרן אור לי מהנדסים") — עם ≥2 מילים כדי למנוע התאמות שווא.
+  // ההתאמה חייבת להיות מלאה ומדויקת על השם כולו — "דוד דוד" ≠ "דוד ברהום",
+  // "קרן אור לי" ≠ "קרן אור לי מהנדסים" — כדי שלא יוצגו תחת יועץ אחד פרויקטים של יועץ אחר.
   const normName = (s) => {
     let out = "";
     for (const ch of String(s || "")) {
@@ -5930,17 +5930,11 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
     }
     return out.replace(/\s+/g, " ").trim().toLowerCase();
   };
-  const tokenize = name => normName(name).split(" ").filter(w => w.length >= 2);
   const supplierName = normName(supplier.name);
-  const supplierTokens = tokenize(supplier.name);
   const namesMatch = (cname) => {
     const cn = normName(cname);
     if (!cn || !supplierName) return false;
-    if (cn === supplierName) return true;
-    const ct = tokenize(cname);
-    if (ct.length < 2 || supplierTokens.length < 2) return false;
-    const subset = (a, b) => a.every(w => b.includes(w));
-    return subset(ct, supplierTokens) || subset(supplierTokens, ct);
+    return cn === supplierName;
   };
   const allMatched = [];
   (projects || []).forEach(proj => {
