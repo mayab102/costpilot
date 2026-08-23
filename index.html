@@ -5952,6 +5952,12 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
   const uniqueFields = [...new Set(allMatched.map(m => m.fieldName).filter(Boolean))];
   const multiField = uniqueFields.length > 1;
 
+  // דירוגים "חיים" בלבד — דירוג יוצג וייספר רק אם קיים לו פרויקט חי תואם שבו הספק
+  // מופיע כרגע כיועץ מאושר. דירוג יתום (פרויקט שנמחק/יועץ שהוסר/דירוג מיובא בלי קישור)
+  // לא יוצג, כדי שלא תהיה סתירה של "N דירוגים / 0 פרויקטים".
+  const liveProjNames = new Set(allMatched.map(m => normName(m.proj.name)));
+  const liveRatings = (supplier.ratings || []).filter(r => liveProjNames.has(normName(r.projectName)));
+
   // Filter by active field tab if selected
   const matchedRaw = activeField ? allMatched.filter(m => m.fieldName === activeField) : allMatched;
   // דה-דופ לפי פרויקט+תחום — כפילות באותו תחום מתאחדת, אבל אם הספק עובד בכמה תחומים
@@ -6011,7 +6017,7 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
 
         {/* Star rating */}
         {(() => {
-          const ratings = supplier.ratings || [];
+          const ratings = liveRatings;
           const overallAvg = ratings.length > 0 ? ratings.reduce((s,r) => s + r.avg, 0) / ratings.length : null;
           return (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -6044,7 +6050,9 @@ function SupplierProfileModal({ supplier, projects, allData, onClose, setSupplie
                           <span style={{ color:"#3A3A3A" }}>{r.projectName}</span>
                           <span style={{ color:"#F5A623", fontWeight:700 }}>★ {r.avg.toFixed(1)}</span>
                           <button onClick={() => {
-                            const updated = { ...supplier, ratings: ratings.filter((_,i) => i !== idx) };
+                            // מוחק את הדירוג הספציפי מתוך supplier.ratings המלא (לפי שם פרויקט + חותמת זמן),
+                            // כדי לא לפגוע בדירוגים יתומים שאינם מוצגים ברשימה המסוננת.
+                            const updated = { ...supplier, ratings: (supplier.ratings || []).filter(rt => !(rt.projectName === r.projectName && rt.ratedAt === r.ratedAt)) };
                             setSuppliers(prev => prev.map(s => s.id === supplier.id ? updated : s));
                           }} style={{ background:"#F8EDED", color:"#5C2020", border:"none", borderRadius:4, padding:"2px 8px", fontSize:11, cursor:"pointer", fontFamily:"'Heebo',sans-serif" }}>מחק</button>
                         </div>
